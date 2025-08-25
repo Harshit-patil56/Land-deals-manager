@@ -1,117 +1,179 @@
-// components/layout/Navbar.js
-
+// components/layout/Navbar.js - Professional Navbar Component
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, X } from "lucide-react"; // for hamburger icons
+import { Menu, X, User, LogOut } from "lucide-react";
 
 export default function Navbar({ user, onLogout }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <nav className="w-full bg-white px-6 py-3 border-b border-gray-200 flex items-center justify-between relative">
-      {/* Left: Logo/App Name */}
-      <div className="flex items-center space-x-3">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold text-sm">L</span>
-        </div>
-        <div>
-          <span className="font-semibold text-lg text-gray-900">Land Deals</span>
-          <p className="text-xs text-gray-500 hidden sm:block">Management System</p>
+    <nav className="w-full bg-white border-b border-slate-200 shadow-sm relative">
+      <div className="px-6 py-4">
+        <div className="flex items-center justify-between">
+          
+          {/* Left: Logo/App Name */}
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center shadow-sm">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+            <div>
+              <span className="font-bold text-xl text-slate-900">Property Hub</span>
+              <p className="text-xs text-slate-600 hidden sm:block">Management System</p>
+            </div>
+          </div>
+
+          {/* Center: Navigation Links (Desktop) */}
+          <div className="hidden lg:flex items-center space-x-8">
+            <Link href="/dashboard" className="text-slate-700 hover:text-slate-900 font-medium transition-colors duration-200">
+              Dashboard
+            </Link>
+            <Link href="/deals/deals" className="text-slate-700 hover:text-slate-900 font-medium transition-colors duration-200">
+              All Deals
+            </Link>
+            <Link href="/reports" className="text-slate-700 hover:text-slate-900 font-medium transition-colors duration-200">
+              Reports
+            </Link>
+            <Link href="/analytics" className="text-slate-700 hover:text-slate-900 font-medium transition-colors duration-200">
+              Analytics
+            </Link>
+          </div>
+
+          {/* Right: User info and logout (Desktop) */}
+          <div className="hidden md:flex items-center space-x-4">
+            <div className="flex items-center space-x-3 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center">
+                <span className="text-white font-semibold text-sm">
+                  {(user?.full_name || user?.name || "User").charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div className="text-left">
+                <span className="text-slate-900 font-semibold text-sm block">
+                  {user?.full_name || user?.name || "User"}
+                </span>
+                <p className="text-xs text-slate-500 capitalize">
+                  {user?.role || "Member"}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onLogout}
+              className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-lg text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 transition-all duration-200 font-medium text-sm shadow-sm"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </button>
+          </div>
+
+          {/* Mobile hamburger */}
+          <button
+            className="md:hidden p-2 rounded-lg hover:bg-slate-100 transition-colors duration-200"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Toggle navigation menu"
+            aria-expanded={menuOpen}
+          >
+            {menuOpen ? (
+              <X className="w-5 h-5 text-slate-700" />
+            ) : (
+              <Menu className="w-5 h-5 text-slate-700" />
+            )}
+          </button>
         </div>
       </div>
-
-      {/* User info and logout */}
-      <div className="hidden md:flex items-center space-x-3">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-            <span className="text-white font-medium text-sm">
-              {(user?.full_name || "User").charAt(0).toUpperCase()}
-            </span>
-          </div>
-          <div className="text-left">
-            <span className="text-gray-900 font-medium text-sm">
-              {user?.full_name || "User"}
-            </span>
-            <p className="text-xs text-gray-500">
-              {user?.role || "Member"}
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={onLogout}
-          className="bg-gray-100 text-gray-700 px-3 py-2 rounded-md hover:bg-gray-200 transition-colors text-sm"
-        >
-          Logout
-        </button>
-      </div>
-
-      {/* Mobile hamburger */}
-      <button
-        className="md:hidden p-2 rounded-md hover:bg-gray-100 transition-colors"
-        onClick={() => setMenuOpen(!menuOpen)}
-        aria-label="Toggle menu"
-        aria-expanded={menuOpen}
-      >
-        {menuOpen ? <X size={20} className="text-gray-700" /> : <Menu size={20} className="text-gray-700" />}
-      </button>
 
       {/* Mobile dropdown menu */}
       {menuOpen && (
-        <div className="absolute top-full left-0 w-full bg-white border-b border-gray-200 flex flex-col px-6 py-4 space-y-3 z-50 md:hidden">
-          
-          {/* User info section for mobile */}
-          <div className="flex items-center space-x-2 pb-3 border-b border-gray-200">
-            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-              <span className="text-white font-medium">
-                {(user?.full_name || "User").charAt(0).toUpperCase()}
-              </span>
+        <div className="absolute top-full left-0 w-full bg-white border-b border-slate-200 shadow-lg z-50 md:hidden">
+          <div className="px-6 py-4 space-y-4">
+            
+            {/* User info section for mobile */}
+            <div className="flex items-center space-x-3 pb-4 border-b border-slate-200">
+              <div className="w-12 h-12 bg-slate-600 rounded-full flex items-center justify-center">
+                <span className="text-white font-semibold text-sm">
+                  {(user?.full_name || user?.name || "User").charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-900 font-semibold text-base block">
+                  {user?.full_name || user?.name || "User"}
+                </span>
+                <p className="text-sm text-slate-600 capitalize">
+                  {user?.role || "Member"}
+                </p>
+              </div>
             </div>
-            <div>
-              <span className="text-gray-900 font-medium">
-                {user?.full_name || "User"}
-              </span>
-              <p className="text-sm text-gray-500">
-                {user?.role || "Member"}
-              </p>
+
+            {/* Navigation links for mobile */}
+            <div className="space-y-2">
+              <Link 
+                href="/dashboard" 
+                className="flex items-center px-4 py-3 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all duration-200 font-medium"
+                onClick={() => setMenuOpen(false)}
+              >
+                <svg className="w-5 h-5 mr-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5h8" />
+                </svg>
+                Dashboard
+              </Link>
+              
+              <Link 
+                href="/deals/deals" 
+                className="flex items-center px-4 py-3 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all duration-200 font-medium"
+                onClick={() => setMenuOpen(false)}
+              >
+                <svg className="w-5 h-5 mr-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                All Deals
+              </Link>
+              
+              <Link 
+                href="/reports" 
+                className="flex items-center px-4 py-3 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all duration-200 font-medium"
+                onClick={() => setMenuOpen(false)}
+              >
+                <svg className="w-5 h-5 mr-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Reports
+              </Link>
+              
+              <Link 
+                href="/analytics" 
+                className="flex items-center px-4 py-3 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all duration-200 font-medium"
+                onClick={() => setMenuOpen(false)}
+              >
+                <svg className="w-5 h-5 mr-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Analytics
+              </Link>
+              
+              <Link 
+                href="/profile" 
+                className="flex items-center px-4 py-3 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all duration-200 font-medium"
+                onClick={() => setMenuOpen(false)}
+              >
+                <User className="w-5 h-5 mr-3 text-slate-500" />
+                Profile
+              </Link>
             </div>
-          </div>
 
-          {/* Navigation links */}
-          <div className="space-y-1">
-            <Link 
-              href="/dashboard" 
-              className="block px-3 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-              onClick={() => setMenuOpen(false)}
-            >
-              Dashboard
-            </Link>
-            <Link 
-              href="/deals/deals" 
-              className="block px-3 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-              onClick={() => setMenuOpen(false)}
-            >
-              All Deals
-            </Link>
-            <Link 
-              href="/profile" 
-              className="block px-3 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-              onClick={() => setMenuOpen(false)}
-            >
-              Profile
-            </Link>
-          </div>
-
-          {/* Logout button */}
-          <div className="pt-3 border-t border-gray-200">
-            <button
-              onClick={() => {
-                setMenuOpen(false);
-                onLogout();
-              }}
-              className="w-full bg-red-50 text-red-600 px-3 py-2 rounded-md hover:bg-red-100 transition-colors"
-            >
-              Logout
-            </button>
+            {/* Logout button for mobile */}
+            <div className="pt-4 border-t border-slate-200">
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  onLogout();
+                }}
+                className="w-full flex items-center justify-center px-4 py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-all duration-200 font-medium"
+              >
+                <LogOut className="w-5 h-5 mr-2" />
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       )}
