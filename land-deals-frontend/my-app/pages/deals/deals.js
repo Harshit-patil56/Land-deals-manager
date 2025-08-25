@@ -1,4 +1,4 @@
-// pages/deals/index.js - Deals Listing page
+// pages/deals/index.js - Enhanced Professional Deals Listing Page
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { getUser, logout, isAuthenticated } from '../../lib/auth'
@@ -47,225 +47,357 @@ export default function DealsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen w-full flex justify-center items-center bg-gray-50">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600"></div>
-          <p className="text-gray-600 font-medium">Loading deals...</p>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-lg shadow-sm border border-slate-200 mb-6">
+            <div className="w-8 h-8 border-3 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading Deals</h3>
+          <p className="text-slate-600">Please wait while we fetch your deals</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen w-full bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50">
       {/* Navigation Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
+      <div className="bg-white shadow-sm border-b border-slate-200">
         <Navbar user={user} onLogout={handleLogout} />
       </div>
 
       {/* Page Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">All Deals</h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Manage and view all your property deals
-            </p>
-          </div>
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-500">
-              {deals.length} deal{deals.length !== 1 ? 's' : ''} found
-            </span>
-            <Link href="/dashboard">
-              <span className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors">
-                ← Back to Dashboard
-              </span>
-            </Link>
+      <div className="bg-white border-b border-slate-200">
+        <div className="px-6 py-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center mr-4">
+                <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">All Property Deals</h1>
+                <p className="text-slate-600 mt-1">
+                  Manage and view all your property transactions
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="bg-slate-100 px-3 py-2 rounded-lg">
+                <span className="text-sm font-medium text-slate-700">
+                  {deals.length} deal{deals.length !== 1 ? 's' : ''} found
+                </span>
+              </div>
+              <Link href="/dashboard">
+                <span className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 cursor-pointer transition-colors">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  Back to Dashboard
+                </span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content - Full Screen */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full px-6 py-6">
-          {deals.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className="text-center">
-                <svg className="mx-auto h-16 w-16 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No deals found</h3>
-                <p className="text-gray-500 mb-6">Get started by creating your first deal!</p>
-                <Link href="/deals/new">
-                  <span className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 cursor-pointer transition-colors">
-                    Create New Deal
-                  </span>
-                </Link>
-              </div>
+      {/* Main Content */}
+      <div className="w-full px-6 py-8">
+        {deals.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-16 text-center">
+            <div className="w-20 h-20 bg-slate-100 rounded-lg mx-auto mb-6 flex items-center justify-center">
+              <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
             </div>
-          ) : (
-            <div className="h-full bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-              {/* Table Header */}
-              <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                <div className="grid grid-cols-12 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div className="col-span-3">Project Details</div>
-                  <div className="col-span-2">Location</div>
-                  <div className="col-span-2">Financial Info</div>
-                  <div className="col-span-2">Status</div>
-                  <div className="col-span-2">Created Date</div>
-                  <div className="col-span-1">Actions</div>
-                </div>
-              </div>
+            <h3 className="text-xl font-semibold text-slate-900 mb-3">No deals found</h3>
+            <p className="text-slate-600 mb-8">Get started by creating your first property deal to begin tracking your transactions.</p>
+            <Link href="/deals/new">
+              <span className="inline-flex items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 cursor-pointer transition-colors">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Create New Deal
+              </span>
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {deals.map((deal) => (
+              <div
+                key={deal.id}
+                className="bg-white border border-slate-200 rounded-lg hover:shadow-lg hover:border-slate-300 transition-all duration-200"
+              >
+                <Link href={`/deals/${deal.id}`}>
+                  <div className="cursor-pointer">
+                    {/* Main Deal Header */}
+                    <div className="p-6 border-b border-slate-100">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3 mb-2">
+                            <h3 className="text-xl font-bold text-slate-900">
+                              {deal.project_name}
+                            </h3>
+                            <span
+                              className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
+                                deal.status === 'open'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {deal.status === 'open' ? 'Active' : 'Closed'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-slate-600">
+                            <div className="flex items-center">
+                              <svg className="w-4 h-4 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              <span><strong>Location:</strong> {deal.location}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <svg className="w-4 h-4 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span><strong>Survey:</strong> {deal.survey_number || 'N/A'}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <svg className="w-4 h-4 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 9l2 2 4-4" />
+                              </svg>
+                              <span><strong>Created:</strong> {new Date(deal.created_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                              })}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
-              {/* Scrollable Deal List */}
-              <div className="flex-1 overflow-y-auto max-h-[calc(100vh-280px)]">
-                <div className="divide-y divide-gray-200">
-                  {deals.map((deal) => (
-                    <div key={deal.id} className="hover:bg-gray-50 transition-colors">
-                      <Link href={`/deals/${deal.id}`}>
-                        <div className="px-6 py-4 cursor-pointer">
-                          <div className="grid grid-cols-12 gap-4 items-center">
-                            {/* Project Details */}
-                            <div className="col-span-3">
-                              <div className="flex items-start">
-                                <div className="flex-1">
-                                  <h4 className="text-sm font-medium text-gray-900 truncate">
-                                    {deal.project_name}
-                                  </h4>
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    Survey: {deal.survey_number || 'N/A'}
-                                  </p>
+                      {/* Detailed Information Grid */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                        
+                        {/* Property Details */}
+                        <div className="bg-slate-50 rounded-lg p-4">
+                          <h4 className="font-semibold text-slate-900 mb-3 flex items-center">
+                            <svg className="w-4 h-4 text-slate-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            Property Information
+                          </h4>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-slate-600">District:</span>
+                              <span className="font-medium text-slate-900">{deal.district || 'N/A'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-600">Taluka:</span>
+                              <span className="font-medium text-slate-900">{deal.taluka || 'N/A'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-600">Village:</span>
+                              <span className="font-medium text-slate-900">{deal.village || 'N/A'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-600">Total Area:</span>
+                              <span className="font-medium text-slate-900">{deal.total_area || 'N/A'} sqft</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-600">Created By:</span>
+                              <span className="font-medium text-slate-900">{deal.created_by || 'N/A'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Financial Information */}
+                        <div className="bg-emerald-50 rounded-lg p-4">
+                          <h4 className="font-semibold text-slate-900 mb-3 flex items-center">
+                            <svg className="w-4 h-4 text-emerald-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                            </svg>
+                            Financial Details
+                          </h4>
+                          <div className="space-y-3 text-sm">
+                            <div>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-slate-600">Purchase Amount:</span>
+                                <span className="font-bold text-lg text-slate-900">
+                                  ₹{deal.purchase_amount?.toLocaleString('en-IN') || '0'}
+                                </span>
+                              </div>
+                              <div className="flex justify-between text-xs text-slate-500">
+                                <span>Purchase Date:</span>
+                                <span>{deal.purchase_date ? new Date(deal.purchase_date).toLocaleDateString() : 'N/A'}</span>
+                              </div>
+                            </div>
+                            
+                            {deal.selling_amount && (
+                              <div className="pt-2 border-t border-emerald-200">
+                                <div className="flex justify-between items-center mb-1">
+                                  <span className="text-emerald-700">Selling Amount:</span>
+                                  <span className="font-bold text-lg text-emerald-800">
+                                    ₹{deal.selling_amount?.toLocaleString('en-IN')}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-xs text-emerald-600">
+                                  <span>Profit/Loss:</span>
+                                  <span className={`font-semibold ${
+                                    (deal.selling_amount - deal.purchase_amount) >= 0 
+                                      ? 'text-emerald-700' 
+                                      : 'text-red-600'
+                                  }`}>
+                                    ₹{((deal.selling_amount - deal.purchase_amount) || 0).toLocaleString('en-IN')}
+                                  </span>
                                 </div>
                               </div>
-                            </div>
+                            )}
 
-                            {/* Location */}
-                            <div className="col-span-2">
-                              <div className="flex items-center text-sm text-gray-900">
-                                <svg className="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                <span className="truncate">{deal.location}</span>
+                            <div className="pt-2 border-t border-emerald-200">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-slate-600">Payment Mode:</span>
+                                <span className="font-medium text-slate-900">{deal.payment_mode || 'N/A'}</span>
                               </div>
-                              <p className="text-xs text-gray-500 mt-1 truncate">
-                                {deal.district}, {deal.taluka}
-                              </p>
-                            </div>
-
-                            {/* Financial Info */}
-                            <div className="col-span-2">
-                              <div className="text-sm">
-                                <div className="flex items-center text-gray-900 mb-1">
-                                  <svg className="w-4 h-4 text-green-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                                  </svg>
-                                  <span className="text-xs">₹{deal.purchase_amount?.toLocaleString() || '0'}</span>
-                                </div>
-                                {deal.selling_amount && (
-                                  <div className="flex items-center text-gray-600">
-                                    <svg className="w-4 h-4 text-blue-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                                    </svg>
-                                    <span className="text-xs">₹{deal.selling_amount?.toLocaleString()}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Status */}
-                            <div className="col-span-2">
-                              <span
-                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                  deal.status === 'open'
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-gray-100 text-gray-800'
-                                }`}
-                              >
-                                <span
-                                  className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                                    deal.status === 'open' ? 'bg-green-600' : 'bg-gray-600'
-                                  }`}
-                                />
-                                {deal.status.toUpperCase()}
-                              </span>
-                            </div>
-
-                            {/* Created Date */}
-                            <div className="col-span-2">
-                              <div className="text-sm text-gray-900">
-                                {new Date(deal.created_at).toLocaleDateString('en-US', {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric'
-                                })}
-                              </div>
-                              <div className="text-xs text-gray-500 mt-1">
-                                {new Date(deal.created_at).toLocaleTimeString('en-US', {
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </div>
-                            </div>
-
-                            {/* Actions */}
-                            <div className="col-span-1">
-                              <div className="flex justify-end">
-                                <button
-                                  className="inline-flex items-center p-1.5 border border-transparent rounded-md text-red-600 hover:bg-red-50 transition-colors"
-                                  onClick={async (e) => {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    if (window.confirm('Are you sure you want to delete this deal?')) {
-                                      try {
-                                        await dealAPI.delete(deal.id)
-                                        toast.success('Deal deleted successfully')
-                                        setDeals(deals.filter(d => d.id !== deal.id))
-                                      } catch (err) {
-                                        toast.error('Failed to delete deal')
-                                      }
-                                    }
-                                  }}
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
+                              <div className="flex justify-between text-xs mt-1">
+                                <span className="text-slate-600">Cheque Date:</span>
+                                <span className="font-medium text-slate-900">
+                                  {deal.cheque_date ? new Date(deal.cheque_date).toLocaleDateString() : 'N/A'}
+                                </span>
                               </div>
                             </div>
                           </div>
                         </div>
-                      </Link>
+                      </div>
+
+                      {/* Additional Information Row */}
+                      <div className="mt-4 pt-4 border-t border-slate-100">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div className="flex items-center text-slate-600">
+                            <svg className="w-4 h-4 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            <span><strong>Owners:</strong> {deal.owners_count || 0} registered</span>
+                          </div>
+                          <div className="flex items-center text-slate-600">
+                            <svg className="w-4 h-4 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            <span><strong>Investors:</strong> {deal.investors_count || 0} involved</span>
+                          </div>
+                          <div className="flex items-center text-slate-600">
+                            <svg className="w-4 h-4 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span><strong>Documents:</strong> {deal.documents_count || 0} files</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  ))}
+                  </div>
+                </Link>
+
+                {/* Action Footer */}
+                <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4 text-sm text-slate-600">
+                      <span className="flex items-center">
+                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                        </svg>
+                        Deal ID: #{deal.id}
+                      </span>
+                      <span>•</span>
+                      <span className="flex items-center">
+                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Last updated: {new Date(deal.updated_at || deal.created_at).toLocaleDateString()}
+                      </span>
+                      {deal.expenses_total && (
+                        <>
+                          <span>•</span>
+                          <span className="flex items-center text-orange-600">
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                            </svg>
+                            Expenses: ₹{deal.expenses_total?.toLocaleString('en-IN')}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <button
+                      className="text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50 px-4 py-2 rounded-md transition-all duration-200 inline-flex items-center border border-red-200 hover:border-red-300"
+                      onClick={async (e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (window.confirm('Are you sure you want to delete this deal? This action cannot be undone.')) {
+                          try {
+                            await dealAPI.delete(deal.id)
+                            toast.success('Deal deleted successfully')
+                            setDeals(deals.filter(d => d.id !== deal.id))
+                          } catch (err) {
+                            toast.error('Failed to delete deal')
+                          }
+                        }
+                      }}
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Delete Deal
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Footer Stats */}
-      <div className="bg-white border-t border-gray-200 px-6 py-3">
-        <div className="flex justify-between items-center text-sm text-gray-600">
-          <div className="flex items-center space-x-6">
-            <span>
-              <span className="font-medium text-gray-900">{deals.filter(d => d.status === 'open').length}</span> Open Deals
-            </span>
-            <span>
-              <span className="font-medium text-gray-900">{deals.filter(d => d.status === 'closed').length}</span> Closed Deals
-            </span>
-            <span>
-              Total Value: <span className="font-medium text-gray-900">
-                ₹{deals.reduce((sum, deal) => sum + (deal.purchase_amount || 0), 0).toLocaleString()}
-              </span>
-            </span>
-          </div>
-          <div className="text-xs text-gray-500">
-            Last updated: {new Date().toLocaleString()}
+      {/* Enhanced Footer Stats */}
+      <footer className="bg-white border-t border-slate-200">
+        <div className="px-6 py-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="flex items-center">
+                <span className="font-medium text-slate-700">Active Deals:</span>
+                <span className="ml-2 inline-flex items-center px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
+                  {deals.filter(d => d.status === 'open').length}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="font-medium text-slate-700">Closed Deals:</span>
+                <span className="ml-2 inline-flex items-center px-2 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium">
+                  {deals.filter(d => d.status === 'closed').length}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="font-medium text-slate-700">Total Investment:</span>
+                <span className="ml-2 font-semibold text-slate-900">
+                  ₹{deals.reduce((sum, deal) => sum + (deal.purchase_amount || 0), 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="font-medium text-slate-700">Total Revenue:</span>
+                <span className="ml-2 font-semibold text-emerald-600">
+                  ₹{deals.reduce((sum, deal) => sum + (deal.selling_amount || 0), 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+            <div className="mt-4 lg:mt-0 text-sm text-slate-500">
+              Last updated: {new Date().toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </div>
           </div>
         </div>
-      </div>
+      </footer>
     </div>
   )
 }
