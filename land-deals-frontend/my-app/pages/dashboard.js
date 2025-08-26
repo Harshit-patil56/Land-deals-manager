@@ -251,7 +251,7 @@ export default function Dashboard() {
                                       {deal.project_name}
                                     </h3>
                                     <p className="text-sm text-slate-600 mt-1">
-                                      Survey: {deal.survey_number || 'Not specified'} • {deal.location}
+                                      Survey: {deal.survey_number || 'Not specified'} • {(deal.district || deal.taluka || deal.village) ? `${deal.district || ''}${deal.district && deal.taluka ? ', ' : ''}${deal.taluka || ''}${(deal.village && (deal.district || deal.taluka)) ? ', ' : ''}${deal.village || ''}` : 'Not specified'}
                                     </p>
                                   </div>
                                   <div className="flex items-center space-x-6">

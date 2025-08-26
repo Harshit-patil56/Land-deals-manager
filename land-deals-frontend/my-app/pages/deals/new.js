@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { dealAPI } from '../../lib/api';
-import { getUser } from '../../lib/auth';
+import api from '../../lib/api';
+import { getUser, getToken } from '../../lib/auth';
 import toast from 'react-hot-toast';
 import * as locationAPI from '../../lib/locationAPI';
 
@@ -14,7 +15,6 @@ export default function NewDeal() {
   const [form, setForm] = useState({
     project_name: '',
     survey_number: '',
-    location: '',
     state: '',
     district: '',
     taluka: '',
@@ -48,6 +48,8 @@ export default function NewDeal() {
     ]
   });
   const [ownerDocuments, setOwnerDocuments] = useState({});
+  const [existingOwnerDocuments, setExistingOwnerDocuments] = useState({});
+  const [missingDocuments, setMissingDocuments] = useState({});
   
   // Initialize owner documents when owners array changes
   useEffect(() => {
@@ -71,6 +73,12 @@ export default function NewDeal() {
     });
     setOwnerDocuments(newOwnerDocuments);
   }, [form.owners.length]);
+  
+  // Existing owners functionality
+  const [existingOwners, setExistingOwners] = useState([]);
+  const [ownerSelectionTypes, setOwnerSelectionTypes] = useState({}); // Track selection type for each owner index
+  const [selectedExistingOwners, setSelectedExistingOwners] = useState({}); // Track selected existing owners
+  
   const [loading, setLoading] = useState(false);
   
   // Location data states
@@ -93,7 +101,102 @@ export default function NewDeal() {
     
     // Load states on component mount
     loadStates();
+    
+    // Load existing owners
+    fetchExistingOwners();
   }, []);
+
+  // Fetch existing owners
+  const fetchExistingOwners = async () => {
+    try {
+      console.log('Fetching existing owners...');
+      console.log('API base URL:', api.defaults.baseURL);
+      console.log('Token available:', !!getToken());
+      
+      // Create a simple API call to get owners using axios with proper auth
+      const response = await api.get('/owners');
+      console.log('Owners response:', response.data);
+      setExistingOwners(response.data);
+    } catch (error) {
+      console.error('Failed to fetch existing owners:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      console.error('Error message:', error.message);
+    }
+  };
+
+  const fetchOwnerDocuments = async (ownerId) => {
+    try {
+      const response = await api.get(`/owners/${ownerId}/documents`);
+      return response.data.documents;
+    } catch (error) {
+      console.error('Failed to fetch owner documents:', error);
+      return {};
+    }
+  };
+
+  const checkMissingDocuments = (existingDocs) => {
+    const requiredDocTypes = [
+      'identity_proof', 'address_proof', 'photograph', 'bank_details',
+      'power_of_attorney', 'past_sale_deeds', 'noc_co_owners', 
+      'noc_society', 'affidavit_no_dispute'
+    ];
+    
+    // Map old document types to new ones for compatibility
+    const docMapping = {
+      'id_proof': 'identity_proof',
+      'photo': 'photograph'
+    };
+    
+    // Normalize existing docs to handle old naming
+    const normalizedDocs = {};
+    Object.entries(existingDocs).forEach(([docType, docs]) => {
+      const normalizedType = docMapping[docType] || docType;
+      if (!normalizedDocs[normalizedType]) {
+        normalizedDocs[normalizedType] = [];
+      }
+      normalizedDocs[normalizedType] = normalizedDocs[normalizedType].concat(docs);
+    });
+    
+    const missing = {};
+    requiredDocTypes.forEach(docType => {
+      if (!normalizedDocs[docType] || normalizedDocs[docType].length === 0) {
+        missing[docType] = true;
+      }
+    });
+    
+    return missing;
+  };
+
+  const getDocumentDescription = (docType) => {
+    const descriptions = {
+      identity_proof: "Aadhaar, PAN, Passport, Voter ID",
+      address_proof: "Electricity Bill, Ration Card, etc.",
+      photograph: "Scanned photo for record",
+      bank_details: "Cancelled cheque or passbook copy",
+      power_of_attorney: "If someone else is signing on behalf",
+      past_sale_deeds: "Previous ownership records",
+      noc_co_owners: "Family members NOC (joint family property)",
+      noc_society: "If applicable",
+      affidavit_no_dispute: "Declaration of no legal dispute"
+    };
+    return descriptions[docType] || "";
+  };
+
+  const getDocumentDisplayName = (docType) => {
+    const displayNames = {
+      identity_proof: "Identity Proof",
+      address_proof: "Address Proof", 
+      photograph: "Photograph",
+      bank_details: "Bank Details",
+      power_of_attorney: "Power of Attorney",
+      past_sale_deeds: "Past Sale Deeds",
+      noc_co_owners: "NOC from Co-owners",
+      noc_society: "NOC from Society/Gram Panchayat",
+      affidavit_no_dispute: "Affidavit - No Legal Dispute"
+    };
+    return displayNames[docType] || docType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
 
   // Location loading functions
   const loadStates = async () => {
@@ -231,6 +334,143 @@ export default function NewDeal() {
   
   const addArrayItem = (arr, obj) => setForm({ ...form, [arr]: [...form[arr], obj] });
   const removeArrayItem = (arr, idx) => setForm({ ...form, [arr]: form[arr].filter((_, i) => i !== idx) });
+  
+  // Owner selection functions
+  const handleOwnerTypeChange = (ownerIndex, type) => {
+    setOwnerSelectionTypes(prev => ({
+      ...prev,
+      [ownerIndex]: type
+    }));
+    
+    if (type === 'new') {
+      // Reset to empty form for new owner
+      const updatedOwners = [...form.owners];
+      updatedOwners[ownerIndex] = { name: '', mobile: '', email: '', aadhar_card: '', pan_card: '' };
+      setForm({ ...form, owners: updatedOwners });
+      
+      // Clear existing owner selection
+      setSelectedExistingOwners(prev => {
+        const updated = { ...prev };
+        delete updated[ownerIndex];
+        return updated;
+      });
+    }
+  };
+  
+  const handleExistingOwnerSelect = async (ownerIndex, existingOwnerId) => {
+    console.log('Selecting existing owner:', existingOwnerId, 'for index:', ownerIndex);
+    
+    setSelectedExistingOwners(prev => ({
+      ...prev,
+      [ownerIndex]: existingOwnerId
+    }));
+    
+    if (existingOwnerId) {
+      const existingOwner = existingOwners.find(owner => owner.id === parseInt(existingOwnerId));
+      console.log('Found existing owner:', existingOwner);
+      
+      if (existingOwner) {
+        const updatedOwners = [...form.owners];
+        updatedOwners[ownerIndex] = {
+          name: existingOwner.name,
+          mobile: existingOwner.mobile || '',
+          email: existingOwner.email || '',
+          aadhar_card: existingOwner.aadhar_card || '',
+          pan_card: existingOwner.pan_card || '',
+          existing_owner_id: existingOwner.id
+        };
+        console.log('Updated owner data:', updatedOwners[ownerIndex]);
+        setForm({ ...form, owners: updatedOwners });
+        
+        // Fetch existing documents for this owner
+        const ownerDocs = await fetchOwnerDocuments(existingOwner.id);
+        
+        // Normalize document types for compatibility
+        const normalizedDocs = {};
+        Object.entries(ownerDocs).forEach(([docType, docs]) => {
+          let normalizedType = docType;
+          // Map old document types to new ones
+          if (docType === 'id_proof') normalizedType = 'identity_proof';
+          if (docType === 'photo') normalizedType = 'photograph';
+          
+          normalizedDocs[normalizedType] = docs;
+        });
+        
+        setExistingOwnerDocuments(prev => ({
+          ...prev,
+          [ownerIndex]: normalizedDocs
+        }));
+        
+        // Check which documents are missing
+        const missing = checkMissingDocuments(normalizedDocs);
+        setMissingDocuments(prev => ({
+          ...prev,
+          [ownerIndex]: missing
+        }));
+      }
+    } else {
+      // Clear documents when no owner is selected
+      setExistingOwnerDocuments(prev => {
+        const updated = { ...prev };
+        delete updated[ownerIndex];
+        return updated;
+      });
+      setMissingDocuments(prev => {
+        const updated = { ...prev };
+        delete updated[ownerIndex];
+        return updated;
+      });
+    }
+  };
+  
+  const addOwnerWithType = () => {
+    const newOwnerIndex = form.owners.length;
+    addArrayItem('owners', { name: '', mobile: '', email: '', aadhar_card: '', pan_card: '' });
+    
+    // Set default to new owner type
+    setOwnerSelectionTypes(prev => ({
+      ...prev,
+      [newOwnerIndex]: 'new'
+    }));
+  };
+  
+  const removeOwnerWithType = (index) => {
+    removeArrayItem('owners', index);
+    
+    // Clean up related state
+    setOwnerSelectionTypes(prev => {
+      const updated = { ...prev };
+      delete updated[index];
+      // Reindex remaining items
+      const reindexed = {};
+      Object.keys(updated).forEach(key => {
+        const keyIndex = parseInt(key);
+        if (keyIndex > index) {
+          reindexed[keyIndex - 1] = updated[key];
+        } else {
+          reindexed[key] = updated[key];
+        }
+      });
+      return reindexed;
+    });
+    
+    setSelectedExistingOwners(prev => {
+      const updated = { ...prev };
+      delete updated[index];
+      // Reindex remaining items
+      const reindexed = {};
+      Object.keys(updated).forEach(key => {
+        const keyIndex = parseInt(key);
+        if (keyIndex > index) {
+          reindexed[keyIndex - 1] = updated[key];
+        } else {
+          reindexed[key] = updated[key];
+        }
+      });
+      return reindexed;
+    });
+  };
+  
   const handleFileChange = (e) => setFiles(Array.from(e.target.files));
 
   const handleLandDocumentChange = (docType, e) => {
@@ -459,7 +699,7 @@ export default function NewDeal() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   <Input label="Project Name" name="project_name" value={form.project_name} onChange={handleChange} required />
                   <Input label="Survey Number" name="survey_number" value={form.survey_number} onChange={handleChange} required />
-                  <Input label="Location" name="location" value={form.location} onChange={handleChange} required />
+                  {/* Location free-text removed: use structured State/District/Taluka/Village fields instead */}
                   
                   {/* State Selection */}
                   <div>
@@ -679,7 +919,7 @@ export default function NewDeal() {
                       {form.owners.length > 1 && (
                         <button 
                           type="button" 
-                          onClick={() => removeArrayItem('owners', idx)} 
+                          onClick={() => removeOwnerWithType(idx)} 
                           className="text-red-600 hover:text-red-800 text-sm font-medium transition-colors px-3 py-1 rounded border border-red-300 hover:border-red-400"
                         >
                           Remove Owner
@@ -687,138 +927,329 @@ export default function NewDeal() {
                       )}
                     </div>
 
+                    {/* Owner Type Selection */}
+                    <div className="mb-6 p-4 bg-white border border-gray-200 rounded-lg">
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">Owner Type</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div 
+                          className={`p-3 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                            (ownerSelectionTypes[idx] || 'new') === 'new' 
+                              ? 'border-blue-500 bg-blue-50' 
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => handleOwnerTypeChange(idx, 'new')}
+                        >
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              name={`ownerType-${idx}`}
+                              value="new"
+                              checked={(ownerSelectionTypes[idx] || 'new') === 'new'}
+                              onChange={() => handleOwnerTypeChange(idx, 'new')}
+                              className="mr-3 w-4 h-4 text-blue-600"
+                            />
+                            <div>
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 text-gray-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                <span className="font-medium text-gray-900">New Owner</span>
+                              </div>
+                              <p className="text-xs text-gray-600 mt-1">Create a new owner profile</p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div 
+                          className={`p-3 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                            ownerSelectionTypes[idx] === 'existing' 
+                              ? 'border-blue-500 bg-blue-50' 
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => handleOwnerTypeChange(idx, 'existing')}
+                        >
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              name={`ownerType-${idx}`}
+                              value="existing"
+                              checked={ownerSelectionTypes[idx] === 'existing'}
+                              onChange={() => handleOwnerTypeChange(idx, 'existing')}
+                              className="mr-3 w-4 h-4 text-blue-600"
+                            />
+                            <div>
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 text-gray-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                                </svg>
+                                <span className="font-medium text-gray-900">Existing Owner</span>
+                              </div>
+                              <p className="text-xs text-gray-600 mt-1">Select from {existingOwners.length} existing owners</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Existing Owner Dropdown */}
+                      {ownerSelectionTypes[idx] === 'existing' && (
+                        <div className="mt-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Select Existing Owner
+                          </label>
+                          <select
+                            value={selectedExistingOwners[idx] || ''}
+                            onChange={(e) => handleExistingOwnerSelect(idx, e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">Choose an existing owner</option>
+                            {existingOwners.map((existingOwner) => (
+                              <option key={existingOwner.id} value={existingOwner.id}>
+                                {existingOwner.name} - {existingOwner.mobile || 'No mobile'} ({existingOwner.email || 'No email'})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Owner Information */}
                     <div className="mb-6">
-                      <h4 className="text-sm font-medium text-gray-700 mb-3">Owner Information</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        <Input name="name" value={owner.name} onChange={(e) => handleArrayChange('owners', idx, e)} placeholder="Owner Name" required />
-                        <Input 
-                          name="mobile" 
-                          type="tel" 
-                          value={owner.mobile} 
-                          onChange={(e) => handleArrayChange('owners', idx, e)} 
-                          placeholder="Mobile Number" 
-                          pattern="[0-9]{10}"
-                          title="Enter 10-digit mobile number"
-                          maxLength="10" 
-                        />
-                        <Input 
-                          name="email" 
-                          type="email" 
-                          value={owner.email} 
-                          onChange={(e) => handleArrayChange('owners', idx, e)} 
-                          placeholder="Email Address"
-                          pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
-                          title="Enter valid email address"
-                        />
-                        <Input 
-                          name="aadhar_card" 
-                          value={owner.aadhar_card} 
-                          onChange={(e) => handleArrayChange('owners', idx, e)} 
-                          placeholder="XXXX XXXX XXXX" 
-                          pattern="[0-9]{4} [0-9]{4} [0-9]{4}"
-                          title="Enter 12-digit Aadhaar number"
-                          maxLength="14" 
-                        />
-                        <Input 
-                          name="pan_card" 
-                          value={owner.pan_card} 
-                          onChange={(e) => handleArrayChange('owners', idx, e)} 
-                          placeholder="ABCDE1234F" 
-                          pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}"
-                          title="Enter valid PAN card number (5 letters, 4 digits, 1 letter)"
-                          maxLength="10" 
-                        />
-                      </div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">
+                        Owner Information
+                        {ownerSelectionTypes[idx] === 'existing' && (
+                          <span className="ml-2 text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">(From Existing Owner)</span>
+                        )}
+                      </h4>
+                      
+                      {ownerSelectionTypes[idx] === 'existing' ? (
+                        // Read-only view for existing owners
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Owner Name</label>
+                            <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
+                              {owner.name || 'Not provided'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Mobile Number</label>
+                            <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
+                              {owner.mobile || 'Not provided'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Email Address</label>
+                            <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
+                              {owner.email || 'Not provided'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Aadhaar Card</label>
+                            <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
+                              {owner.aadhar_card || 'Not provided'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">PAN Card</label>
+                            <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
+                              {owner.pan_card || 'Not provided'}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        // Editable form for new owners
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                          <Input name="name" value={owner.name} onChange={(e) => handleArrayChange('owners', idx, e)} placeholder="Owner Name" required />
+                          <Input 
+                            name="mobile" 
+                            type="tel" 
+                            value={owner.mobile} 
+                            onChange={(e) => handleArrayChange('owners', idx, e)} 
+                            placeholder="Mobile Number" 
+                            pattern="[0-9]{10}"
+                            title="Enter 10-digit mobile number"
+                            maxLength="10" 
+                          />
+                          <Input 
+                            name="email" 
+                            type="email" 
+                            value={owner.email} 
+                            onChange={(e) => handleArrayChange('owners', idx, e)} 
+                            placeholder="Email Address"
+                            pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
+                            title="Enter valid email address"
+                          />
+                          <Input 
+                            name="aadhar_card" 
+                            value={owner.aadhar_card} 
+                            onChange={(e) => handleArrayChange('owners', idx, e)} 
+                            placeholder="XXXX XXXX XXXX" 
+                            pattern="[0-9]{4} [0-9]{4} [0-9]{4}"
+                            title="Enter 12-digit Aadhaar number"
+                            maxLength="14" 
+                          />
+                          <Input 
+                            name="pan_card" 
+                            value={owner.pan_card} 
+                            onChange={(e) => handleArrayChange('owners', idx, e)} 
+                            placeholder="ABCDE1234F" 
+                            pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}"
+                            title="Enter valid PAN card number (5 letters, 4 digits, 1 letter)"
+                            maxLength="10" 
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* Owner Documents */}
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-3">Documents for {owner.name || `Owner ${idx + 1}`}</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        
-                        {/* Identity Proof */}
-                        <DocumentUploadField
-                          title="Identity Proof"
-                          description="Aadhaar, PAN, Passport, Voter ID"
-                          documents={ownerDocuments[idx]?.identity_proof || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'identity_proof', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'identity_proof', index)}
-                        />
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">
+                        Documents for {owner.name || `Owner ${idx + 1}`}
+                        {ownerSelectionTypes[idx] === 'existing' && (
+                          <span className="ml-2 text-xs text-blue-600">(Existing Owner)</span>
+                        )}
+                      </h4>
+                      
+                      {ownerSelectionTypes[idx] === 'existing' ? (
+                        // Existing Owner Documents
+                        <div>
+                          {existingOwnerDocuments[idx] && Object.keys(existingOwnerDocuments[idx]).length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                              {Object.entries(existingOwnerDocuments[idx]).map(([docType, docs]) => (
+                                <div key={docType} className="border rounded-lg p-3 bg-green-50">
+                                  <h5 className="font-medium text-green-800 mb-2">
+                                    {getDocumentDisplayName(docType)}
+                                  </h5>
+                                  <div className="space-y-2">
+                                    {docs.map((doc, docIdx) => (
+                                      <div key={docIdx} className="flex items-center justify-between text-sm">
+                                        <span className="text-green-700 truncate">{doc.name}</span>
+                                        <button
+                                          type="button"
+                                          className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 rounded bg-blue-100"
+                                          onClick={() => window.open(`http://localhost:5000/uploads/${doc.file_path}`, '_blank')}
+                                        >
+                                          View
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-gray-500 mb-4 p-3 bg-gray-50 rounded">
+                              No documents found for this owner.
+                            </div>
+                          )}
+                          
+                          {/* Missing Documents for Existing Owner */}
+                          {missingDocuments[idx] && Object.keys(missingDocuments[idx]).length > 0 && (
+                            <div>
+                              <h5 className="text-sm font-medium text-orange-700 mb-3">Missing Documents</h5>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {Object.entries(missingDocuments[idx]).map(([docType, isMissing]) => 
+                                  isMissing && (
+                                    <DocumentUploadField
+                                      key={docType}
+                                      title={getDocumentDisplayName(docType)}
+                                      description={getDocumentDescription(docType)}
+                                      documents={ownerDocuments[idx]?.[docType] || []}
+                                      onChange={(e) => handleOwnerDocumentChange(idx, docType, e)}
+                                      onRemove={(index) => removeOwnerDocument(idx, docType, index)}
+                                    />
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        // New Owner Documents
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          
+                          {/* Identity Proof */}
+                          <DocumentUploadField
+                            title="Identity Proof"
+                            description="Aadhaar, PAN, Passport, Voter ID"
+                            documents={ownerDocuments[idx]?.identity_proof || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'identity_proof', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'identity_proof', index)}
+                          />
 
-                        {/* Address Proof */}
-                        <DocumentUploadField
-                          title="Address Proof"
-                          description="Electricity Bill, Ration Card, etc."
-                          documents={ownerDocuments[idx]?.address_proof || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'address_proof', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'address_proof', index)}
-                        />
+                          {/* Address Proof */}
+                          <DocumentUploadField
+                            title="Address Proof"
+                            description="Electricity Bill, Ration Card, etc."
+                            documents={ownerDocuments[idx]?.address_proof || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'address_proof', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'address_proof', index)}
+                          />
 
-                        {/* Photograph */}
-                        <DocumentUploadField
-                          title="Photograph"
-                          description="Scanned photo for record"
-                          documents={ownerDocuments[idx]?.photograph || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'photograph', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'photograph', index)}
-                        />
+                          {/* Photograph */}
+                          <DocumentUploadField
+                            title="Photograph"
+                            description="Scanned photo for record"
+                            documents={ownerDocuments[idx]?.photograph || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'photograph', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'photograph', index)}
+                          />
 
-                        {/* Bank Account Details */}
-                        <DocumentUploadField
-                          title="Bank Account Details"
-                          description="Cancelled cheque or passbook copy"
-                          documents={ownerDocuments[idx]?.bank_details || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'bank_details', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'bank_details', index)}
-                        />
+                          {/* Bank Account Details */}
+                          <DocumentUploadField
+                            title="Bank Account Details"
+                            description="Cancelled cheque or passbook copy"
+                            documents={ownerDocuments[idx]?.bank_details || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'bank_details', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'bank_details', index)}
+                          />
 
-                        {/* Power of Attorney */}
-                        <DocumentUploadField
-                          title="Power of Attorney"
-                          description="If someone else is signing on behalf"
-                          documents={ownerDocuments[idx]?.power_of_attorney || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'power_of_attorney', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'power_of_attorney', index)}
-                        />
+                          {/* Power of Attorney */}
+                          <DocumentUploadField
+                            title="Power of Attorney"
+                            description="If someone else is signing on behalf"
+                            documents={ownerDocuments[idx]?.power_of_attorney || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'power_of_attorney', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'power_of_attorney', index)}
+                          />
 
-                        {/* Past Sale Deeds */}
-                        <DocumentUploadField
-                          title="Past Sale Deeds"
-                          description="Previous ownership records"
-                          documents={ownerDocuments[idx]?.past_sale_deeds || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'past_sale_deeds', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'past_sale_deeds', index)}
-                        />
+                          {/* Past Sale Deeds */}
+                          <DocumentUploadField
+                            title="Past Sale Deeds"
+                            description="Previous ownership records"
+                            documents={ownerDocuments[idx]?.past_sale_deeds || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'past_sale_deeds', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'past_sale_deeds', index)}
+                          />
 
-                        {/* NOC from Co-owners */}
-                        <DocumentUploadField
-                          title="NOC from Co-owners"
-                          description="Family members NOC (joint family property)"
-                          documents={ownerDocuments[idx]?.noc_co_owners || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'noc_co_owners', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'noc_co_owners', index)}
-                        />
+                          {/* NOC from Co-owners */}
+                          <DocumentUploadField
+                            title="NOC from Co-owners"
+                            description="Family members NOC (joint family property)"
+                            documents={ownerDocuments[idx]?.noc_co_owners || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'noc_co_owners', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'noc_co_owners', index)}
+                          />
 
-                        {/* NOC from Society/Gram Panchayat */}
-                        <DocumentUploadField
-                          title="NOC from Society/Gram Panchayat"
-                          description="If applicable"
-                          documents={ownerDocuments[idx]?.noc_society || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'noc_society', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'noc_society', index)}
-                        />
+                          {/* NOC from Society/Gram Panchayat */}
+                          <DocumentUploadField
+                            title="NOC from Society/Gram Panchayat"
+                            description="If applicable"
+                            documents={ownerDocuments[idx]?.noc_society || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'noc_society', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'noc_society', index)}
+                          />
 
-                        {/* Affidavit No Legal Dispute */}
-                        <DocumentUploadField
-                          title="Affidavit - No Legal Dispute"
-                          description="Declaration of no legal dispute"
-                          documents={ownerDocuments[idx]?.affidavit_no_dispute || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'affidavit_no_dispute', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'affidavit_no_dispute', index)}
-                        />
+                          {/* Affidavit No Legal Dispute */}
+                          <DocumentUploadField
+                            title="Affidavit - No Legal Dispute"
+                            description="Declaration of no legal dispute"
+                            documents={ownerDocuments[idx]?.affidavit_no_dispute || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'affidavit_no_dispute', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'affidavit_no_dispute', index)}
+                          />
 
-                      </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -826,7 +1257,7 @@ export default function NewDeal() {
                 {/* Add Owner Button - Moved to Bottom */}
                 <button 
                   type="button" 
-                  onClick={() => addArrayItem('owners', { name: '', mobile: '', email: '', aadhar_card: '', pan_card: '' })} 
+                  onClick={() => addOwnerWithType()} 
                   className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-gray-600 hover:border-gray-400 hover:text-gray-700 font-medium transition-colors"
                 >
                   + Add Owner

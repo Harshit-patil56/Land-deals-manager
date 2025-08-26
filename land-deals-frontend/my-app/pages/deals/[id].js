@@ -110,7 +110,7 @@ export default function DealDetails() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                  <div className="text-sm text-gray-900 py-2 px-3 bg-gray-50 rounded border">{deal.location || `${deal.district}, ${deal.taluka}, ${deal.village}` || '-'}</div>
+                  <div className="text-sm text-gray-900 py-2 px-3 bg-gray-50 rounded border">{(deal.district || deal.taluka || deal.village) ? `${deal.district || ''}${deal.district && deal.taluka ? ', ' : ''}${deal.taluka || ''}${(deal.village && (deal.district || deal.taluka)) ? ', ' : ''}${deal.village || ''}` : '-'}</div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">District</label>

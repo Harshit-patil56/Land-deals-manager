@@ -1,5 +1,5 @@
 # app.py - Main Flask Application
-from flask import Flask, request, jsonify, session, send_from_directory, abort
+from flask import Flask, request, jsonify, session, send_from_directory, send_file, abort
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -7,6 +7,17 @@ import mysql.connector
 from datetime import datetime, timedelta
 import jwt
 import os
+import time
+from io import BytesIO
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.utils import ImageReader
+except Exception:
+    # reportlab may not be installed in dev environment; the endpoint will return an error
+    A4 = None
+    canvas = None
+    ImageReader = None
 from functools import wraps
 import json
 import mimetypes
@@ -31,10 +42,13 @@ app = Flask(__name__)
 app.static_folder = 'uploads'
 app.static_url_path = '/uploads'
 app.config['SECRET_KEY'] = 'your-secret-key-here'
-app.config['UPLOAD_FOLDER'] = 'uploads'
+APP_ROOT = os.path.dirname(__file__)
+# Use absolute uploads folder inside backend so static serving works predictably
+app.config['UPLOAD_FOLDER'] = os.path.join(APP_ROOT, 'uploads')
 CORS(app, origins='*', supports_credentials=True, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
      allow_headers=['Content-Type', 'Authorization', 'Range'],
      expose_headers=['Content-Range', 'Accept-Ranges', 'Content-Length', 'Content-Type'])
+
 
 # Database configuration
 DB_CONFIG = {
@@ -60,6 +74,81 @@ def get_db_connection():
         print(f"Database error: {err}")
         return None
 
+# Helper functions for location normalization
+def get_or_create_state(cursor, state_name):
+    """Get state_id or create if not exists. Returns None if state_name is empty."""
+    if not state_name or state_name.strip() == '':
+        return None
+    
+    # Check if state exists
+    cursor.execute("SELECT id FROM states WHERE name = %s", (state_name.strip(),))
+    result = cursor.fetchone()
+    if result:
+        return result[0]
+    
+    # Create new state
+    cursor.execute("INSERT IGNORE INTO states (name) VALUES (%s)", (state_name.strip(),))
+    if cursor.lastrowid:
+        return cursor.lastrowid
+    
+    # Try to get it again in case of race condition
+    cursor.execute("SELECT id FROM states WHERE name = %s", (state_name.strip(),))
+    result = cursor.fetchone()
+    return result[0] if result else None
+
+def get_or_create_district(cursor, state_id, district_name):
+    """Get district_id or create if not exists. Returns None if district_name is empty."""
+    if not district_name or district_name.strip() == '' or not state_id:
+        return None
+    
+    # Check if district exists
+    cursor.execute("SELECT id FROM districts WHERE state_id = %s AND name = %s", (state_id, district_name.strip()))
+    result = cursor.fetchone()
+    if result:
+        return result[0]
+    
+    # Create new district
+    cursor.execute("INSERT IGNORE INTO districts (state_id, name) VALUES (%s, %s)", (state_id, district_name.strip()))
+    if cursor.lastrowid:
+        return cursor.lastrowid
+    
+    # Try to get it again in case of race condition
+    cursor.execute("SELECT id FROM districts WHERE state_id = %s AND name = %s", (state_id, district_name.strip()))
+    result = cursor.fetchone()
+    return result[0] if result else None
+
+
+# Helpers to resolve or create normalized location rows
+def get_or_create_state(cursor, state_name):
+    """Return state id for given state_name, creating the state if missing."""
+    if not state_name:
+        return None
+    state_name = state_name.strip()
+    cursor.execute("SELECT id FROM states WHERE name = %s", (state_name,))
+    row = cursor.fetchone()
+    if row:
+        # cursor may be dictionary or tuple depending on cursor type
+        return row['id'] if isinstance(row, dict) else row[0]
+    # Insert new state
+    cursor.execute("INSERT INTO states (name) VALUES (%s)", (state_name,))
+    return cursor.lastrowid
+
+
+def get_or_create_district(cursor, state_id, district_name):
+    """Return district id for given state_id and district_name, creating if missing."""
+    if not district_name:
+        return None
+    district_name = district_name.strip()
+    if not state_id:
+        return None
+    cursor.execute("SELECT id FROM districts WHERE state_id = %s AND name = %s", (state_id, district_name))
+    row = cursor.fetchone()
+    if row:
+        return row['id'] if isinstance(row, dict) else row[0]
+    # Insert new district
+    cursor.execute("INSERT INTO districts (state_id, name) VALUES (%s, %s)", (state_id, district_name))
+    return cursor.lastrowid
+
 # JWT token decorator
 def token_required(f):
     @wraps(f)
@@ -72,6 +161,15 @@ def token_required(f):
             if token.startswith('Bearer '):
                 token = token[7:]
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            # expose decoded user on request for permission checks
+            try:
+                request.user = {
+                    'id': data.get('user_id'),
+                    'username': data.get('username'),
+                    'role': data.get('role')
+                }
+            except Exception:
+                request.user = {'id': data.get('user_id')}
             current_user = data['user_id']
         except:
             return jsonify({'error': 'Token is invalid'}), 401
@@ -80,6 +178,927 @@ def token_required(f):
     return decorated
 
 # Routes
+
+# Payments endpoints integrated into app.py (moved here so token_required is defined)
+@app.route('/api/payments/test', methods=['GET'])
+def payments_test():
+    return jsonify({'message': 'Payments endpoints active'})
+
+
+@app.route('/api/payments/<int:deal_id>', methods=['GET'])
+def list_payments(deal_id):
+    """Return all payments for a deal"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT p.* FROM payments p WHERE p.deal_id = %s ORDER BY p.payment_date DESC", (deal_id,))
+        rows = cursor.fetchall() or []
+
+        # convert dates to isoformat where applicable
+        for r in rows:
+            for k in ('payment_date', 'created_at'):
+                if r.get(k) is not None and isinstance(r.get(k), datetime):
+                    r[k] = r[k].isoformat()
+
+        # attach parties for each payment using a fresh cursor (dictionary rows expected)
+        try:
+            party_cursor = conn.cursor(dictionary=True)
+            for r in rows:
+                party_cursor.execute("SELECT id, party_type, party_id, amount, percentage FROM payment_parties WHERE payment_id = %s", (r['id'],))
+                parts = party_cursor.fetchall() or []
+                part_list = []
+                for p in parts:
+                    part_list.append({
+                        'id': p.get('id'),
+                        'party_type': p.get('party_type'),
+                        'party_id': p.get('party_id'),
+                        'amount': float(p.get('amount')) if p.get('amount') is not None else None,
+                        'percentage': float(p.get('percentage')) if p.get('percentage') is not None else None
+                    })
+                r['parties'] = part_list
+        except Exception:
+            for r in rows:
+                r['parties'] = []
+
+        return jsonify(rows)
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/ledger.csv', methods=['GET'])
+@token_required
+def payments_ledger_csv(current_user):
+    """Export ledger results as CSV. Accepts same query params as /api/payments/ledger"""
+    params = request.args
+    deal_id = params.get('deal_id')
+    party_type = params.get('party_type')
+    party_id = params.get('party_id')
+    payment_mode = params.get('payment_mode')
+    start_date = params.get('start_date')
+    end_date = params.get('end_date')
+
+    args = []
+    if party_type or party_id:
+        sql = "SELECT DISTINCT p.* FROM payments p JOIN payment_parties pp ON pp.payment_id = p.id WHERE 1=1"
+        if deal_id:
+            sql += " AND p.deal_id = %s"
+            args.append(deal_id)
+        if party_type:
+            sql += " AND pp.party_type = %s"
+            args.append(party_type)
+        if party_id:
+            sql += " AND pp.party_id = %s"
+            args.append(party_id)
+    else:
+        sql = "SELECT p.* FROM payments p WHERE 1=1"
+        if deal_id:
+            sql += " AND p.deal_id = %s"
+            args.append(deal_id)
+        if payment_mode:
+            sql += " AND p.payment_mode = %s"
+            args.append(payment_mode)
+
+    if start_date:
+        sql += " AND p.payment_date >= %s"
+        args.append(start_date)
+    if end_date:
+        sql += " AND p.payment_date <= %s"
+        args.append(end_date)
+
+    sql += " ORDER BY p.payment_date DESC"
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(sql, tuple(args))
+        cols = [d[0] for d in cursor.description]
+        rows = cursor.fetchall() or []
+
+        import io, csv
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(cols)
+        for r in rows:
+            row = []
+            for v in r:
+                if isinstance(v, datetime):
+                    row.append(v.isoformat())
+                else:
+                    row.append(v)
+            w.writerow(row)
+        csv_data = buf.getvalue()
+        return app.response_class(csv_data, mimetype='text/csv', headers={"Content-Disposition": "attachment; filename=ledger.csv"})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/ledger.pdf', methods=['GET'])
+@token_required
+def payments_ledger_pdf(current_user):
+    """Generate a simple PDF ledger. Embeds the first proof image per payment when present."""
+    if canvas is None:
+        return jsonify({'error': 'reportlab not available on server'}), 500
+
+    params = request.args
+    deal_id = params.get('deal_id')
+    party_type = params.get('party_type')
+    party_id = params.get('party_id')
+    payment_mode = params.get('payment_mode')
+    start_date = params.get('start_date')
+    end_date = params.get('end_date')
+
+    args = []
+    if party_type or party_id:
+        sql = "SELECT DISTINCT p.* FROM payments p JOIN payment_parties pp ON pp.payment_id = p.id WHERE 1=1"
+        if deal_id:
+            sql += " AND p.deal_id = %s"
+            args.append(deal_id)
+        if party_type:
+            sql += " AND pp.party_type = %s"
+            args.append(party_type)
+        if party_id:
+            sql += " AND pp.party_id = %s"
+            args.append(party_id)
+    else:
+        sql = "SELECT p.* FROM payments p WHERE 1=1"
+        if deal_id:
+            sql += " AND p.deal_id = %s"
+            args.append(deal_id)
+        if payment_mode:
+            sql += " AND p.payment_mode = %s"
+            args.append(payment_mode)
+
+    if start_date:
+        sql += " AND p.payment_date >= %s"
+        args.append(start_date)
+    if end_date:
+        sql += " AND p.payment_date <= %s"
+        args.append(end_date)
+
+    sql += " ORDER BY p.payment_date DESC"
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(sql, tuple(args))
+        rows = cursor.fetchall() or []
+
+        # For each payment fetch one proof file path (if any)
+        for r in rows:
+            cursor.execute("SELECT file_path FROM payment_proofs WHERE payment_id = %s ORDER BY uploaded_at DESC LIMIT 1", (r['id'],))
+            p = cursor.fetchone()
+            if p and p.get('file_path'):
+                r['proof'] = p.get('file_path')
+            else:
+                r['proof'] = None
+
+        # Create PDF
+        buff = BytesIO()
+        c = canvas.Canvas(buff, pagesize=A4)
+        width, height = A4
+        y = height - 40
+        c.setFont('Helvetica-Bold', 14)
+        title = f"Payments Ledger {('Deal ' + str(deal_id)) if deal_id else ''}"
+        c.drawString(40, y, title)
+        y -= 30
+        c.setFont('Helvetica', 10)
+
+        for r in rows:
+            if y < 160:
+                c.showPage()
+                y = height - 40
+                c.setFont('Helvetica', 10)
+
+            # Header line with date, id, amount, currency
+            c.setFont('Helvetica-Bold', 11)
+            c.drawString(40, y, f"{r.get('payment_date','')}  | ID: {r.get('id','-')}  | ₹{r.get('amount','')}")
+            c.setFont('Helvetica', 10)
+            c.drawString(400, y, f"{r.get('currency','INR')}")
+            y -= 16
+
+            # Mode, reference, created_by
+            c.drawString(40, y, f"Mode: {r.get('payment_mode','-')}")
+            c.drawString(200, y, f"Reference: {str(r.get('reference') or '-')}" )
+            c.drawString(420, y, f"Created by: {r.get('created_by') or '-'}")
+            y -= 14
+
+            # Notes (trim long)
+            notes = str(r.get('notes') or '')
+            c.drawString(40, y, f"Notes: {notes[:120]}")
+            y -= 14
+
+            # Party splits (if any) — draw a small table with columns
+            if r.get('parties'):
+                parts = r.get('parties') or []
+                if parts:
+                    # Table layout
+                    x0 = 48
+                    col1 = x0
+                    col2 = x0 + 260
+                    col3 = x0 + 360
+                    row_h = 14
+                    # header
+                    c.setFont('Helvetica-Bold', 9)
+                    c.drawString(col1, y, 'Party')
+                    c.drawString(col2, y, 'Percentage')
+                    c.drawString(col3, y, 'Amount')
+                    y -= row_h
+                    c.setFont('Helvetica', 9)
+                    # rows
+                    for pp in parts:
+                        # page break if necessary
+                        if y < 80:
+                            c.showPage()
+                            y = height - 40
+                            c.setFont('Helvetica', 10)
+                        label = pp.get('party_name') or (f"{pp.get('party_type','')} #{pp.get('party_id')}" if pp.get('party_id') else pp.get('party_type',''))
+                        pct = pp.get('percentage')
+                        amt = pp.get('amount')
+                        c.drawString(col1, y, f"{label}")
+                        c.drawString(col2, y, f"{pct if pct is not None else '-'}")
+                        c.drawRightString(col3 + 60, y, f"{('₹' + format(amt, ',.2f')) if amt is not None else '-'}")
+                        y -= row_h
+            else:
+                # draw image thumbnail if proof exists and file present
+                if r.get('proof'):
+                    p = r.get('proof').replace('\\', '/')
+                    idx = p.find('uploads/')
+                    if idx != -1:
+                        rel = p[idx:]
+                        img_path = os.path.abspath(os.path.join(APP_ROOT, rel))
+                        try:
+                            img = ImageReader(img_path)
+                            c.drawImage(img, 40, y-60, width=80, height=60, preserveAspectRatio=True, mask='auto')
+                            y -= 64
+                        except Exception:
+                            pass
+
+            y -= 12
+
+        c.save()
+        buff.seek(0)
+        return send_file(buff, mimetype='application/pdf', as_attachment=True, download_name='ledger.pdf')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/ledger', methods=['GET'])
+def payments_ledger():
+    """Return payments filtered by query parameters:
+    Supported params: deal_id, party_type, party_id, payment_mode, start_date, end_date
+    """
+    params = request.args
+    deal_id = params.get('deal_id')
+    party_type = params.get('party_type')
+    party_id = params.get('party_id')
+    payment_mode = params.get('payment_mode')
+    start_date = params.get('start_date')
+    end_date = params.get('end_date')
+
+    # If filtering by party (party_type or party_id) prefer to join payment_parties
+    args = []
+    if party_type or party_id:
+        sql = "SELECT DISTINCT p.* FROM payments p JOIN payment_parties pp ON pp.payment_id = p.id WHERE 1=1"
+        if deal_id:
+            sql += " AND p.deal_id = %s"
+            args.append(deal_id)
+        if party_type:
+            sql += " AND pp.party_type = %s"
+            args.append(party_type)
+        if party_id:
+            sql += " AND pp.party_id = %s"
+            args.append(party_id)
+    else:
+        sql = "SELECT p.* FROM payments p WHERE 1=1"
+        if deal_id:
+            sql += " AND p.deal_id = %s"
+            args.append(deal_id)
+        if payment_mode:
+            sql += " AND p.payment_mode = %s"
+            args.append(payment_mode)
+
+    if start_date:
+        sql += " AND p.payment_date >= %s"
+        args.append(start_date)
+    if end_date:
+        sql += " AND p.payment_date <= %s"
+        args.append(end_date)
+
+    sql += " ORDER BY p.payment_date DESC"
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(sql, tuple(args))
+        rows = cursor.fetchall() or []
+        for r in rows:
+            for k in ('payment_date', 'created_at'):
+                if r.get(k) is not None and isinstance(r.get(k), datetime):
+                    r[k] = r[k].isoformat()
+        return jsonify(rows)
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/<int:deal_id>', methods=['POST'])
+@token_required
+def create_payment(current_user, deal_id):
+    """Create a payment record for a deal"""
+    data = request.get_json() or {}
+    # normalize party_type to the ENUM allowed values in the DB
+    party_type = data.get('party_type', 'other')
+    allowed_party_types = {'owner', 'buyer', 'investor', 'other'}
+    if party_type not in allowed_party_types:
+        party_type = 'other'
+
+    # normalize party_id to integer or None
+    party_id = data.get('party_id')
+    try:
+        if party_id is None or party_id == '':
+            party_id = None
+        else:
+            party_id = int(party_id)
+    except Exception:
+        party_id = None
+    amount = data.get('amount')
+    currency = data.get('currency', 'INR')
+    payment_date = data.get('payment_date')
+    payment_mode = data.get('payment_mode')
+    reference = data.get('reference')
+    notes = data.get('notes')
+
+    # Validate amount
+    try:
+        if amount is None or amount == '':
+            raise ValueError('amount missing')
+        amount = float(amount)
+    except Exception:
+        return jsonify({'error': 'amount is required and must be a number'}), 400
+
+    # Validate payment_date (required, YYYY-MM-DD)
+    if not payment_date:
+        return jsonify({'error': 'payment_date is required and must be YYYY-MM-DD'}), 400
+    try:
+        parsed = datetime.strptime(payment_date, '%Y-%m-%d').date()
+        payment_date = parsed.strftime('%Y-%m-%d')
+    except Exception:
+        return jsonify({'error': 'payment_date must be in YYYY-MM-DD format'}), 400
+
+    # If parties provided, compute their sum and optionally enforce equality with amount.
+    parties = data.get('parties')
+    try:
+        prepared_parties = []
+        if parties and isinstance(parties, list):
+            for part in parties:
+                pt = part.get('party_type', 'other')
+                pid = part.get('party_id')
+                amt = part.get('amount')
+                pct = part.get('percentage')
+                if pid is not None and pid != '':
+                    try:
+                        pid = int(pid)
+                    except Exception:
+                        pid = None
+                if amt is not None and amt != '':
+                    try:
+                        amt = float(amt)
+                    except Exception:
+                        amt = None
+                if pct is not None and pct != '':
+                    try:
+                        pct = float(pct)
+                    except Exception:
+                        pct = None
+                prepared_parties.append({'party_type': pt, 'party_id': pid, 'amount': amt, 'percentage': pct})
+    except Exception:
+        prepared_parties = []
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        # Start a transaction to ensure payment + parties are atomic
+        conn.start_transaction()
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO payments (deal_id, party_type, party_id, amount, currency, payment_date, payment_mode, reference, notes, created_by)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (deal_id, party_type, party_id, amount, currency, payment_date, payment_mode, reference, notes, current_user)
+        )
+        payment_id = cursor.lastrowid
+
+        # Server-side validation: if prepared_parties provided, ensure consistency
+        if prepared_parties:
+            amounts_provided = any(isinstance(p.get('amount'), (int, float)) for p in prepared_parties)
+            percentages_provided = any(isinstance(p.get('percentage'), (int, float)) for p in prepared_parties)
+
+            # If percentages are provided, ensure they sum to (approximately) 100
+            if percentages_provided:
+                total_pct = sum([p.get('percentage') or 0 for p in prepared_parties])
+                force = request.args.get('force', 'false').lower() == 'true'
+                if abs(total_pct - 100.0) > 0.01 and not force:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                    return jsonify({'error': 'party_percentage_mismatch', 'total_percentage': total_pct}), 400
+
+            # If only percentages are provided (not amounts), compute amounts from payment amount
+            if percentages_provided and not amounts_provided:
+                for p in prepared_parties:
+                    pct = p.get('percentage')
+                    if isinstance(pct, (int, float)):
+                        p['amount'] = round((pct / 100.0) * amount, 2)
+
+            # If amounts are provided, ensure their sum matches payment amount
+            if amounts_provided:
+                total_party_amount = sum([p['amount'] for p in prepared_parties if isinstance(p.get('amount'), (int, float))])
+                force = request.args.get('force', 'false').lower() == 'true'
+                if abs(total_party_amount - amount) > 0.01 and not force:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                    return jsonify({'error': 'party_amount_mismatch', 'payment_amount': amount, 'parties_total': total_party_amount}), 400
+
+        # If request provided multiple parties with shares, persist them to payment_parties
+        if prepared_parties:
+            for part in prepared_parties:
+                try:
+                    cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount, percentage) VALUES (%s,%s,%s,%s,%s)", (payment_id, part.get('party_type', 'other'), part.get('party_id'), part.get('amount'), part.get('percentage')))
+                except mysql.connector.Error as db_e:
+                    # If the DB schema is missing the `percentage` column (1054), retry without it.
+                    try:
+                        if getattr(db_e, 'errno', None) == 1054 or 'Unknown column' in str(db_e):
+                            cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount) VALUES (%s,%s,%s,%s)", (payment_id, part.get('party_type', 'other'), part.get('party_id'), part.get('amount')))
+                        else:
+                            raise
+                    except Exception:
+                        # Bubble up original error so outer except catches and returns 500
+                        raise
+
+        # commit transaction
+        conn.commit()
+
+        return jsonify({'message': 'Payment recorded', 'payment_id': payment_id}), 201
+    except Exception as e:
+        # rollback on error
+        try:
+            if conn:
+                conn.rollback()
+        except Exception:
+            pass
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/<int:deal_id>/<int:payment_id>', methods=['PUT'])
+@token_required
+def annotate_payment(current_user, deal_id, payment_id):
+    """Add notes or update a payment's reference/notes"""
+    data = request.get_json() or {}
+    fields = {}
+    for k in ('reference', 'notes', 'payment_mode', 'amount', 'payment_date'):
+        if k in data:
+            fields[k] = data[k]
+
+    if not fields:
+        return jsonify({'error': 'No updatable fields provided'}), 400
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+        params = list(fields.values()) + [deal_id, payment_id]
+        cursor.execute(f"UPDATE payments SET {set_clause} WHERE deal_id = %s AND id = %s", params)
+        conn.commit()
+        return jsonify({'message': 'Payment updated'})
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/<int:deal_id>/<int:payment_id>', methods=['DELETE'])
+@token_required
+def delete_payment(current_user, deal_id, payment_id):
+    """Delete a payment and its proof files (admin or owner)."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Fetch proofs to delete files
+        cursor.execute("SELECT id, file_path FROM payment_proofs WHERE payment_id = %s", (payment_id,))
+        proofs = cursor.fetchall()
+
+        # Permission check: only admins or creator of payment can delete
+        try:
+            cursor.execute("SELECT created_by FROM payments WHERE id = %s AND deal_id = %s", (payment_id, deal_id))
+            p = cursor.fetchone()
+            created_by = p.get('created_by') if p else None
+        except Exception:
+            created_by = None
+
+        role = None
+        try:
+            role = request.user.get('role')
+        except Exception:
+            role = None
+
+        if not (role == 'admin' or created_by == current_user):
+            return jsonify({'error': 'forbidden'}), 403
+
+        # Delete DB rows for proofs
+        cursor.execute("DELETE FROM payment_proofs WHERE payment_id = %s", (payment_id,))
+
+        # Delete payment row
+        cursor.execute("DELETE FROM payments WHERE deal_id = %s AND id = %s", (deal_id, payment_id))
+        conn.commit()
+
+        # remove files from disk (best-effort)
+        for pr in proofs:
+            fp = pr.get('file_path')
+            if not fp:
+                continue
+            # Normalize: find uploads/ inside path
+            p = fp.replace('\\', '/')
+            idx = p.find('uploads/')
+            if idx != -1:
+                rel = p[idx:]
+                # compute absolute path relative to the configured UPLOAD_FOLDER
+                abs_path = os.path.abspath(os.path.join(app.config['UPLOAD_FOLDER'], os.path.relpath(rel.replace('uploads/', ''), '')))
+                try:
+                    # ensure the abs_path is inside UPLOAD_FOLDER
+                    if abs_path.startswith(os.path.abspath(app.config['UPLOAD_FOLDER'])) and os.path.exists(abs_path):
+                        os.remove(abs_path)
+                except Exception:
+                    pass
+
+        return jsonify({'message': 'Payment and proofs deleted'})
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/<int:payment_id>/parties', methods=['POST'])
+@token_required
+def add_payment_party(current_user, payment_id):
+    """Add a party share to an existing payment."""
+    data = request.get_json() or {}
+    pt = data.get('party_type', 'other')
+    pid = data.get('party_id')
+    amt = data.get('amount')
+    pct = data.get('percentage')
+    try:
+        if pid is not None and pid != '':
+            pid = int(pid)
+    except Exception:
+        pid = None
+    try:
+        if amt is not None and amt != '':
+            amt = float(amt)
+    except Exception:
+        amt = None
+    try:
+        if pct is not None and pct != '':
+            pct = float(pct)
+    except Exception:
+        pct = None
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount, percentage) VALUES (%s,%s,%s,%s,%s)", (payment_id, pt, pid, amt, pct))
+        except mysql.connector.Error as db_e:
+            if getattr(db_e, 'errno', None) == 1054 or 'Unknown column' in str(db_e):
+                cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount) VALUES (%s,%s,%s,%s)", (payment_id, pt, pid, amt))
+            else:
+                raise
+        conn.commit()
+        return jsonify({'message': 'party_added', 'party_id': cursor.lastrowid}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/parties/<int:party_id>', methods=['PUT'])
+@token_required
+def update_payment_party(current_user, party_id):
+    data = request.get_json() or {}
+    fields = {}
+    for k in ('party_type', 'party_id', 'amount', 'percentage'):
+        if k in data:
+            fields[k] = data[k]
+    if not fields:
+        return jsonify({'error': 'no fields to update'}), 400
+    # normalize
+    if 'party_id' in fields:
+        try:
+            fields['party_id'] = int(fields['party_id'])
+        except Exception:
+            fields['party_id'] = None
+    if 'amount' in fields:
+        try:
+            fields['amount'] = float(fields['amount'])
+        except Exception:
+            fields['amount'] = None
+    if 'percentage' in fields:
+        try:
+            fields['percentage'] = float(fields['percentage'])
+        except Exception:
+            fields['percentage'] = None
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+        params = list(fields.values()) + [party_id]
+        try:
+            cursor.execute(f"UPDATE payment_parties SET {set_clause} WHERE id = %s", params)
+        except mysql.connector.Error as db_e:
+            # If percentage column doesn't exist and it's in set_clause, retry without it
+            if (getattr(db_e, 'errno', None) == 1054 or 'Unknown column' in str(db_e)) and 'percentage' in set_clause:
+                # Build a reduced clause removing percentage
+                reduced_fields = {k: v for k, v in fields.items() if k != 'percentage'}
+                if not reduced_fields:
+                    return jsonify({'error': 'percentage column not present on server'}), 500
+                set_clause2 = ', '.join([f"{k} = %s" for k in reduced_fields.keys()])
+                params2 = list(reduced_fields.values()) + [party_id]
+                cursor.execute(f"UPDATE payment_parties SET {set_clause2} WHERE id = %s", params2)
+            else:
+                raise
+        conn.commit()
+        return jsonify({'message': 'party_updated'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/parties/<int:party_id>', methods=['DELETE'])
+@token_required
+def delete_payment_party(current_user, party_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM payment_parties WHERE id = %s", (party_id,))
+        conn.commit()
+        return jsonify({'message': 'party_deleted'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/deals/<int:deal_id>/financials', methods=['GET'])
+@token_required
+def deal_financials(current_user, deal_id):
+    """Return a financial summary for a deal: totals for payments by mode, total expenses, investments, owners' shares (if profit_allocation set), and simple P&L estimate."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # total payments grouped by payment_mode
+        cursor.execute("SELECT payment_mode, SUM(amount) as total FROM payments WHERE deal_id = %s GROUP BY payment_mode", (deal_id,))
+        payments_by_mode = cursor.fetchall() or []
+
+        # total payments overall
+        cursor.execute("SELECT SUM(amount) as total_payments FROM payments WHERE deal_id = %s", (deal_id,))
+        total_pay = cursor.fetchone() or {}
+
+        # total expenses
+        cursor.execute("SELECT SUM(amount) as total_expenses FROM expenses WHERE deal_id = %s", (deal_id,))
+        total_exp = cursor.fetchone() or {}
+
+        # total investments
+        cursor.execute("SELECT SUM(investment_amount) as total_invested FROM investors WHERE deal_id = %s", (deal_id,))
+        total_inv = cursor.fetchone() or {}
+
+        # owners count and basic split if profit_allocation exists on deals
+        cursor.execute("SELECT profit_allocation, purchase_amount, selling_amount FROM deals WHERE id = %s", (deal_id,))
+        deal = cursor.fetchone() or {}
+
+        # basic profit calculation if selling and purchase present
+        profit = None
+        try:
+            pur = float(deal.get('purchase_amount') or 0)
+            sell = float(deal.get('selling_amount') or 0)
+            profit = sell - pur if (pur and sell) else None
+        except Exception:
+            profit = None
+
+        return jsonify({
+            'payments_by_mode': payments_by_mode,
+            'total_payments': total_pay.get('total_payments'),
+            'total_expenses': total_exp.get('total_expenses'),
+            'total_invested': total_inv.get('total_invested'),
+            'deal_profit_estimate': profit,
+            'profit_allocation': deal.get('profit_allocation')
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/<int:deal_id>/<int:payment_id>/proofs/<int:proof_id>', methods=['DELETE'])
+@token_required
+def delete_proof(current_user, deal_id, payment_id, proof_id):
+    """Delete a single proof by id (best-effort file removal)."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT file_path, uploaded_by FROM payment_proofs WHERE id = %s AND payment_id = %s", (proof_id, payment_id))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'proof not found'}), 404
+
+        # permission: only admin or uploader can delete
+        uploader = row.get('uploaded_by')
+        role = None
+        try:
+            role = request.user.get('role')
+        except Exception:
+            role = None
+        if not (role == 'admin' or uploader == current_user):
+            return jsonify({'error': 'forbidden'}), 403
+
+        # delete DB row
+        cursor.execute("DELETE FROM payment_proofs WHERE id = %s", (proof_id,))
+        conn.commit()
+
+        # delete file
+        fp = row.get('file_path')
+        if fp:
+            p = fp.replace('\\', '/')
+            idx = p.find('uploads/')
+            if idx != -1:
+                rel = p[idx:]
+                abs_path = os.path.join(APP_ROOT, rel)
+                try:
+                    if os.path.exists(abs_path):
+                        os.remove(abs_path)
+                except Exception:
+                    pass
+
+        return jsonify({'message': 'proof deleted'})
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/<int:deal_id>/<int:payment_id>/proof', methods=['POST'])
+@token_required
+def upload_payment_proof(current_user, deal_id, payment_id):
+    """Upload an image/file as proof for a payment. Expects form-data with key 'proof'."""
+    if 'proof' not in request.files:
+        return jsonify({'error': 'No proof file provided (use form field name "proof")'}), 400
+
+    file = request.files['proof']
+    if file.filename == '':
+        return jsonify({'error': 'Empty filename'}), 400
+
+    # Validation: accept any file type, but enforce size limit and secure filename
+    MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5 MB
+
+    # prefix filename with a timestamp to avoid collisions
+    base = secure_filename(file.filename)
+    ts = str(int(time.time()))
+    safe_name = f"{ts}_{base}"
+
+    # Size check (attempt to use content_length or file.stream)
+    size = None
+    try:
+        if hasattr(file, 'content_length') and file.content_length:
+            size = int(file.content_length)
+        else:
+            # try to seek stream
+            stream = file.stream
+            stream.seek(0, os.SEEK_END)
+            size = stream.tell()
+            stream.seek(0)
+    except Exception:
+        size = None
+
+    if size is not None and size > MAX_UPLOAD_SIZE:
+        return jsonify({'error': 'File too large, max 5MB'}), 400
+
+    # Save file under uploads/deal_<id>/payments/<payment_id>/
+    # Save file under uploads/deal_<id>/payments/<payment_id>/
+    save_dir = os.path.join(app.config['UPLOAD_FOLDER'], f'deal_{deal_id}', 'payments', str(payment_id))
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, safe_name)
+    try:
+        file.save(save_path)
+    except Exception as e:
+        return jsonify({'error': f'Failed to save file: {e}'}), 500
+
+    # Store a web-friendly path starting with uploads/ so the frontend can request /uploads/...
+    # e.g. uploads/deal_50/payments/3/project.jpg
+    # Use a web-relative path (do not store the server absolute uploads folder path)
+    web_rel = os.path.join('uploads', f'deal_{deal_id}', 'payments', str(payment_id), safe_name).replace('\\', '/')
+
+    # Optional document type (e.g., receipt, bank_transfer, cheque, cash, upi, contra)
+    doc_type = request.form.get('doc_type')
+
+    # Persist metadata to payment_proofs table (if present)
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # include doc_type if column exists (migration adds it)
+        try:
+            cursor.execute("INSERT INTO payment_proofs (payment_id, file_path, uploaded_by, doc_type) VALUES (%s,%s,%s,%s)", (payment_id, web_rel, current_user, doc_type))
+        except Exception:
+            # fallback if column doesn't exist
+            cursor.execute("INSERT INTO payment_proofs (payment_id, file_path, uploaded_by) VALUES (%s,%s,%s)", (payment_id, web_rel, current_user))
+        conn.commit()
+        proof_id = cursor.lastrowid
+    except mysql.connector.Error as e:
+        # If table doesn't exist or insert fails, still return success for file save but warn
+        return jsonify({'warning': 'file_saved_but_db_insert_failed', 'file_path': web_rel, 'db_error': str(e)}), 200
+    finally:
+        if conn:
+            conn.close()
+
+    return jsonify({'message': 'proof_uploaded', 'proof_id': proof_id, 'file_path': web_rel}), 201
+
+
+@app.route('/api/payments/<int:deal_id>/<int:payment_id>/proofs', methods=['GET'])
+def list_payment_proofs(deal_id, payment_id):
+    """Return list of proof records for a given payment."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id, file_path, uploaded_by, uploaded_at FROM payment_proofs WHERE payment_id = %s ORDER BY uploaded_at DESC", (payment_id,))
+        rows = cursor.fetchall()
+        # Convert file_path to a URL path the frontend can load (uploads are served at /uploads/...)
+        for r in rows:
+            if r.get('file_path'):
+                p = r['file_path'].replace('\\', '/')
+                # If path contains 'uploads/...', trim any leading '../' or other segments
+                idx = p.find('uploads/')
+                if idx != -1:
+                    p = '/' + p[idx:]
+                else:
+                    # ensure it starts with /
+                    if not p.startswith('/'):
+                        p = '/' + p
+                # Build an absolute URL so the frontend (which may be on a different origin) can fetch the file
+                try:
+                    base = request.host_url.rstrip('/')
+                    r['url'] = f"{base}{p}"
+                except Exception:
+                    # fallback to the path-only URL
+                    r['url'] = p
+            # include doc_type if present
+            if r.get('doc_type'):
+                r['doc_type'] = r.get('doc_type')
+        return jsonify(rows)
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -99,7 +1118,16 @@ def login():
         cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
         user = cursor.fetchone()
         
-        if user and password == user['password']:  # In production, use hashed passwords
+        stored = user.get('password') if user else None
+        ok = False
+        if stored:
+            # if stored looks like a hashed password use check_password_hash, otherwise plain compare
+            try:
+                ok = check_password_hash(stored, password)
+            except Exception:
+                ok = (password == stored)
+
+        if user and ok:
             token = jwt.encode({
                 'user_id': user['id'],
                 'username': user['username'],
@@ -125,16 +1153,479 @@ def login():
         if connection:
             connection.close()
 
+@app.route('/api/register', methods=['POST'])
+def register():
+    """
+    Temporary registration endpoint for testing purposes
+    """
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+        full_name = data.get('full_name', username)
+        role = data.get('role', 'user')
+        
+        if not username or not password:
+            return jsonify({'error': 'Username and password required'}), 400
+        
+        connection = get_db_connection()
+        if not connection:
+            return jsonify({'error': 'Database connection failed'}), 500
+        
+        cursor = connection.cursor(dictionary=True)
+        
+        # Check if user already exists
+        cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+        existing_user = cursor.fetchone()
+        
+        if existing_user:
+            return jsonify({'error': 'Username already exists'}), 400
+        
+        # Create users table if it doesn't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                full_name VARCHAR(255),
+                role VARCHAR(50) DEFAULT 'user',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Insert new user
+        cursor.execute("""
+            INSERT INTO users (username, password, full_name, role)
+            VALUES (%s, %s, %s, %s)
+        """, (username, password, full_name, role))
+        
+        connection.commit()
+        
+        return jsonify({
+            'message': 'User created successfully',
+            'user': {
+                'username': username,
+                'full_name': full_name,
+                'role': role
+            }
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection:
+            connection.close()
+
     # DELETE route for deals
 @app.route('/api/deals/<int:deal_id>', methods=['DELETE'])
 @token_required
 def delete_deal(current_user, deal_id):
+    """
+    Delete a deal and all its associated data (owners, buyers, investors, expenses, documents)
+    """
     try:
         connection = get_db_connection()
         cursor = connection.cursor()
+        
+        # First check if deal exists
+        cursor.execute("SELECT id FROM deals WHERE id = %s", (deal_id,))
+        if not cursor.fetchone():
+            return jsonify({'error': 'Deal not found'}), 404
+        
+        # Delete all associated data in the correct order (foreign key constraints)
+        
+        # 1. Delete owner documents first (if table exists)
+        try:
+            cursor.execute("""
+                DELETE od FROM owner_documents od 
+                INNER JOIN owners o ON od.owner_id = o.id 
+                WHERE o.deal_id = %s
+            """, (deal_id,))
+        except Exception as e:
+            # Table might not exist, continue
+            pass
+        
+        # 2. Delete deal documents (if table exists)
+        try:
+            cursor.execute("DELETE FROM deal_documents WHERE deal_id = %s", (deal_id,))
+        except Exception as e:
+            # Table might not exist, continue
+            pass
+        
+        # 3. Delete owners associated with this deal
+        cursor.execute("DELETE FROM owners WHERE deal_id = %s", (deal_id,))
+        
+        # 4. Delete buyers associated with this deal  
+        cursor.execute("DELETE FROM buyers WHERE deal_id = %s", (deal_id,))
+        
+        # 5. Delete investors associated with this deal
+        cursor.execute("DELETE FROM investors WHERE deal_id = %s", (deal_id,))
+        
+        # 6. Delete expenses associated with this deal
+        cursor.execute("DELETE FROM expenses WHERE deal_id = %s", (deal_id,))
+        
+        # 7. Finally delete the deal itself
         cursor.execute("DELETE FROM deals WHERE id = %s", (deal_id,))
+        
         connection.commit()
-        return jsonify({'message': 'Deal deleted successfully'})
+        
+        return jsonify({
+            'message': 'Deal and all associated data deleted successfully',
+            'deleted_deal_id': deal_id
+        })
+        
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': f'Failed to delete deal: {str(e)}'}), 500
+    finally:
+        if connection:
+            connection.close()
+
+@app.route('/api/cleanup/orphaned-owners', methods=['DELETE'])
+@token_required  
+def cleanup_orphaned_owners(current_user):
+    """
+    Clean up orphaned owners whose associated deals have been deleted
+    """
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Find owners whose deal_id no longer exists in deals table
+        cursor.execute("""
+            SELECT o.id, o.name, o.deal_id 
+            FROM owners o 
+            LEFT JOIN deals d ON o.deal_id = d.id 
+            WHERE d.id IS NULL
+        """)
+        orphaned_owners = cursor.fetchall()
+        
+        if not orphaned_owners:
+            return jsonify({
+                'message': 'No orphaned owners found',
+                'deleted_count': 0
+            })
+        
+        orphaned_owner_ids = [owner[0] for owner in orphaned_owners]
+        
+        # Delete documents for orphaned owners (if table exists)
+        try:
+            if orphaned_owner_ids:
+                placeholders = ','.join(['%s'] * len(orphaned_owner_ids))
+                cursor.execute(f"""
+                    DELETE FROM owner_documents 
+                    WHERE owner_id IN ({placeholders})
+                """, orphaned_owner_ids)
+        except Exception as e:
+            # Table might not exist, continue
+            pass
+        
+        # Delete the orphaned owners
+        if orphaned_owner_ids:
+            placeholders = ','.join(['%s'] * len(orphaned_owner_ids))
+            cursor.execute(f"""
+                DELETE FROM owners 
+                WHERE id IN ({placeholders})
+            """, orphaned_owner_ids)
+        
+        connection.commit()
+        
+        return jsonify({
+            'message': f'Successfully cleaned up {len(orphaned_owners)} orphaned owners',
+            'deleted_count': len(orphaned_owners),
+            'deleted_owners': [{'id': owner[0], 'name': owner[1], 'deal_id': owner[2]} for owner in orphaned_owners]
+        })
+        
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': f'Failed to cleanup orphaned owners: {str(e)}'}), 500
+    finally:
+        if connection:
+            connection.close()
+
+@app.route('/api/cleanup/all-orphaned-data', methods=['DELETE'])
+@token_required
+def cleanup_all_orphaned_data(current_user):
+    """
+    Clean up all orphaned data (owners, buyers, investors, expenses) whose deals have been deleted
+    """
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        cleanup_results = {}
+        
+        # 1. Clean up orphaned owners
+        cursor.execute("""
+            SELECT o.id, o.name, o.deal_id 
+            FROM owners o 
+            LEFT JOIN deals d ON o.deal_id = d.id 
+            WHERE d.id IS NULL
+        """)
+        orphaned_owners = cursor.fetchall()
+        
+        if orphaned_owners:
+            orphaned_owner_ids = [owner[0] for owner in orphaned_owners]
+            
+            # Delete owner documents first
+            try:
+                placeholders = ','.join(['%s'] * len(orphaned_owner_ids))
+                cursor.execute(f"""
+                    DELETE FROM owner_documents 
+                    WHERE owner_id IN ({placeholders})
+                """, orphaned_owner_ids)
+            except Exception:
+                pass
+            
+            # Delete orphaned owners
+            placeholders = ','.join(['%s'] * len(orphaned_owner_ids))
+            cursor.execute(f"""
+                DELETE FROM owners 
+                WHERE id IN ({placeholders})
+            """, orphaned_owner_ids)
+            
+            cleanup_results['owners'] = {
+                'count': len(orphaned_owners),
+                'names': [owner[1] for owner in orphaned_owners]
+            }
+        else:
+            cleanup_results['owners'] = {'count': 0, 'names': []}
+        
+        # 2. Clean up orphaned buyers
+        cursor.execute("""
+            SELECT b.id, b.name, b.deal_id 
+            FROM buyers b 
+            LEFT JOIN deals d ON b.deal_id = d.id 
+            WHERE d.id IS NULL
+        """)
+        orphaned_buyers = cursor.fetchall()
+        
+        if orphaned_buyers:
+            orphaned_buyer_ids = [buyer[0] for buyer in orphaned_buyers]
+            placeholders = ','.join(['%s'] * len(orphaned_buyer_ids))
+            cursor.execute(f"""
+                DELETE FROM buyers 
+                WHERE id IN ({placeholders})
+            """, orphaned_buyer_ids)
+            
+            cleanup_results['buyers'] = {
+                'count': len(orphaned_buyers),
+                'names': [buyer[1] for buyer in orphaned_buyers]
+            }
+        else:
+            cleanup_results['buyers'] = {'count': 0, 'names': []}
+        
+        # 3. Clean up orphaned investors
+        cursor.execute("""
+            SELECT i.id, i.investor_name, i.deal_id 
+            FROM investors i 
+            LEFT JOIN deals d ON i.deal_id = d.id 
+            WHERE d.id IS NULL
+        """)
+        orphaned_investors = cursor.fetchall()
+        
+        if orphaned_investors:
+            orphaned_investor_ids = [investor[0] for investor in orphaned_investors]
+            placeholders = ','.join(['%s'] * len(orphaned_investor_ids))
+            cursor.execute(f"""
+                DELETE FROM investors 
+                WHERE id IN ({placeholders})
+            """, orphaned_investor_ids)
+            
+            cleanup_results['investors'] = {
+                'count': len(orphaned_investors),
+                'names': [investor[1] for investor in orphaned_investors]
+            }
+        else:
+            cleanup_results['investors'] = {'count': 0, 'names': []}
+        
+        # 4. Clean up orphaned expenses
+        cursor.execute("""
+            SELECT e.id, e.expense_type, e.deal_id 
+            FROM expenses e 
+            LEFT JOIN deals d ON e.deal_id = d.id 
+            WHERE d.id IS NULL
+        """)
+        orphaned_expenses = cursor.fetchall()
+        
+        if orphaned_expenses:
+            orphaned_expense_ids = [expense[0] for expense in orphaned_expenses]
+            placeholders = ','.join(['%s'] * len(orphaned_expense_ids))
+            cursor.execute(f"""
+                DELETE FROM expenses 
+                WHERE id IN ({placeholders})
+            """, orphaned_expense_ids)
+            
+            cleanup_results['expenses'] = {
+                'count': len(orphaned_expenses),
+                'types': [expense[1] for expense in orphaned_expenses]
+            }
+        else:
+            cleanup_results['expenses'] = {'count': 0, 'types': []}
+        
+        connection.commit()
+        
+        total_cleaned = sum(result['count'] for result in cleanup_results.values())
+        
+        return jsonify({
+            'message': f'Successfully cleaned up {total_cleaned} orphaned records',
+            'cleanup_results': cleanup_results,
+            'total_deleted': total_cleaned
+        })
+        
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        return jsonify({'error': f'Failed to cleanup orphaned data: {str(e)}'}), 500
+    finally:
+        if connection:
+            connection.close()
+
+@app.route('/api/deals/<int:deal_id>', methods=['PUT'])
+@token_required
+def update_deal(current_user, deal_id):
+    """Update an existing deal with all its related data"""
+    try:
+        data = request.get_json()
+        
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Check if deal exists
+        cursor.execute("SELECT id FROM deals WHERE id = %s", (deal_id,))
+        if not cursor.fetchone():
+            return jsonify({'error': 'Deal not found'}), 404
+        
+        # Handle empty strings for numeric fields
+        total_area = data.get('total_area') if data.get('total_area') != '' else None
+        purchase_amount = data.get('purchase_amount') if data.get('purchase_amount') != '' else None
+        selling_amount = data.get('selling_amount') if data.get('selling_amount') != '' else None
+
+        # Resolve normalized state_id and district_id (idempotent)
+        state_name = data.get('state')
+        district_name = data.get('district')
+        state_id = None
+        district_id = None
+        try:
+            # Use the helper functions which will insert if missing
+            state_id = get_or_create_state(cursor, state_name)
+            if state_id:
+                district_id = get_or_create_district(cursor, state_id, district_name)
+        except Exception:
+            # Non-fatal: continue without normalized ids if any issue
+            state_id = None
+            district_id = None
+
+        # Update main deal record
+        cursor.execute("""
+            UPDATE deals SET 
+                project_name = %s, survey_number = %s, location = %s, state = %s, 
+                district = %s, taluka = %s, village = %s, total_area = %s, area_unit = %s, 
+                purchase_date = %s, purchase_amount = %s, selling_amount = %s, 
+                status = %s, payment_mode = %s, profit_allocation = %s, 
+                state_id = %s, district_id = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (
+            data.get('project_name'),
+            data.get('survey_number'),
+            data.get('location'),
+            data.get('state'),
+            data.get('district'),
+            data.get('taluka'),
+            data.get('village'),
+            total_area,
+            data.get('area_unit'),
+            data.get('purchase_date'),
+            purchase_amount,
+            selling_amount,
+            data.get('status'),
+            data.get('payment_mode'),
+            data.get('profit_allocation'),
+            state_id,
+            district_id,
+            deal_id
+        ))
+
+        # Update owners - delete existing and insert new ones
+        cursor.execute("DELETE FROM owners WHERE deal_id = %s", (deal_id,))
+        owners = data.get('owners', [])
+        for owner in owners:
+            if owner.get('name'):
+                cursor.execute("""
+                    INSERT INTO owners (deal_id, name, mobile, email, aadhar_card, pan_card, address)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    deal_id,
+                    owner.get('name'),
+                    owner.get('mobile'),
+                    owner.get('email'),
+                    owner.get('aadhar_card'),
+                    owner.get('pan_card'),
+                    owner.get('address')
+                ))
+
+        # Update buyers - delete existing and insert new ones
+        cursor.execute("DELETE FROM buyers WHERE deal_id = %s", (deal_id,))
+        buyers = data.get('buyers', [])
+        for buyer in buyers:
+            if buyer.get('name'):
+                cursor.execute("""
+                    INSERT INTO buyers (deal_id, name, mobile, email, aadhar_card, pan_card)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (
+                    deal_id,
+                    buyer.get('name'),
+                    buyer.get('mobile'),
+                    buyer.get('email'),
+                    buyer.get('aadhar_card'),
+                    buyer.get('pan_card')
+                ))
+        
+        # Update investors - delete existing and insert new ones
+        cursor.execute("DELETE FROM investors WHERE deal_id = %s", (deal_id,))
+        investors = data.get('investors', [])
+        for investor in investors:
+            if investor.get('investor_name'):
+                cursor.execute("""
+                    INSERT INTO investors (deal_id, investor_name, investment_amount, 
+                                         investment_percentage, mobile, email, 
+                                         aadhar_card, pan_card)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    deal_id,
+                    investor.get('investor_name'),
+                    investor.get('investment_amount'),
+                    investor.get('investment_percentage'),
+                    investor.get('mobile'),
+                    investor.get('email'),
+                    investor.get('aadhar_card'),
+                    investor.get('pan_card')
+                ))
+
+        # Update expenses - delete existing and insert new ones
+        cursor.execute("DELETE FROM expenses WHERE deal_id = %s", (deal_id,))
+        expenses = data.get('expenses', [])
+        for expense in expenses:
+            if expense.get('expense_type') and expense.get('amount'):
+                cursor.execute("""
+                    INSERT INTO expenses (deal_id, expense_type, expense_description, amount, paid_by, expense_date, receipt_number)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    deal_id,
+                    expense.get('expense_type'),
+                    expense.get('expense_description'),
+                    expense.get('amount'),
+                    expense.get('paid_by'),
+                    expense.get('expense_date'),
+                    expense.get('receipt_number')
+                ))
+
+        connection.commit()
+        return jsonify({'message': 'Deal updated successfully', 'deal_id': deal_id})
+    
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
@@ -184,12 +1675,27 @@ def create_deal(current_user):
         purchase_amount = data.get('purchase_amount') if data.get('purchase_amount') != '' else None
         selling_amount = data.get('selling_amount') if data.get('selling_amount') != '' else None
 
-        # Insert deal with new fields
+        # Resolve normalized state_id and district_id (idempotent)
+        state_name = data.get('state')
+        district_name = data.get('district')
+        state_id = None
+        district_id = None
+        try:
+            # Use the helper functions which will insert if missing
+            state_id = get_or_create_state(cursor, state_name)
+            if state_id:
+                district_id = get_or_create_district(cursor, state_id, district_name)
+        except Exception:
+            # Non-fatal: continue without normalized ids if any issue
+            state_id = None
+            district_id = None
+
+        # Insert deal with new fields including normalized ids and keep legacy text
         cursor.execute("""
             INSERT INTO deals (project_name, survey_number, location, state, district, 
                              taluka, village, total_area, area_unit, purchase_date, 
-                             purchase_amount, selling_amount, created_by, status, payment_mode, profit_allocation)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                             purchase_amount, selling_amount, created_by, status, payment_mode, profit_allocation, state_id, district_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             data.get('project_name'),
             data.get('survey_number'),
@@ -206,13 +1712,25 @@ def create_deal(current_user):
             current_user,
             data.get('status'),
             data.get('payment_mode'),
-            data.get('profit_allocation')
+            data.get('profit_allocation'),
+            state_id,
+            district_id
         ))
         deal_id = cursor.lastrowid
         # Insert owners
         owners = data.get('owners', [])
         for owner in owners:
-            if owner.get('name'):
+            if owner.get('existing_owner_id'):
+                # Associate existing owner with this deal
+                cursor.execute("""
+                    INSERT INTO owners (deal_id, name, mobile, email, aadhar_card, pan_card)
+                    SELECT %s, name, mobile, email, aadhar_card, pan_card
+                    FROM owners 
+                    WHERE id = %s
+                    LIMIT 1
+                """, (deal_id, owner.get('existing_owner_id')))
+            elif owner.get('name'):
+                # Create new owner
                 cursor.execute("""
                     INSERT INTO owners (deal_id, name, mobile, email, aadhar_card, pan_card)
                     VALUES (%s, %s, %s, %s, %s, %s)
@@ -381,6 +1899,321 @@ def add_expense(current_user, deal_id):
         if connection:
             connection.close()
 
+# Owners API endpoints
+@app.route('/api/owners', methods=['GET'])
+@token_required
+def get_all_owners(current_user):
+    """Get all owners with their project counts and total investment"""
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT 
+                MIN(o.id) as id,
+                o.name,
+                o.mobile,
+                o.email,
+                o.aadhar_card,
+                o.pan_card,
+                COUNT(DISTINCT o.deal_id) as total_projects,
+                COUNT(DISTINCT CASE WHEN d.status = 'active' THEN d.id END) as active_projects,
+                COALESCE(SUM(CASE WHEN d.status = 'active' THEN d.purchase_amount END), 0) as total_investment
+            FROM owners o
+            LEFT JOIN deals d ON o.deal_id = d.id
+            GROUP BY o.name, o.mobile, o.email, o.aadhar_card, o.pan_card
+            ORDER BY o.name
+        """)
+        owners = cursor.fetchall()
+        
+        return jsonify(owners)
+    
+    except Exception as e:
+        print(f"Error in get_all_owners: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection:
+            connection.close()
+
+@app.route('/api/owners/<int:owner_id>', methods=['GET'])
+@token_required
+def get_owner_details(current_user, owner_id):
+    """Get detailed owner information including all their projects"""
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        # Get owner details
+        cursor.execute("""
+            SELECT DISTINCT o.id, o.name, o.mobile, o.email, o.aadhar_card, o.pan_card
+            FROM owners o
+            WHERE o.id = %s
+        """, (owner_id,))
+        owner = cursor.fetchone()
+        
+        if not owner:
+            return jsonify({'error': 'Owner not found'}), 404
+        
+        # Get all projects for this owner (find by matching owner details, not just this ID)
+        cursor.execute("""
+            SELECT DISTINCT
+                d.id,
+                d.project_name,
+                d.state,
+                d.district,
+                d.taluka,
+                d.village,
+                d.total_area,
+                d.area_unit,
+                d.purchase_amount,
+                d.selling_amount,
+                d.purchase_date,
+                d.status,
+                d.created_at
+            FROM deals d
+            INNER JOIN owners o ON d.id = o.deal_id
+            WHERE o.name = %s 
+                AND (o.mobile = %s OR o.mobile IS NULL OR %s IS NULL)
+                AND (o.email = %s OR o.email IS NULL OR %s IS NULL)
+            ORDER BY d.created_at DESC
+        """, (owner['name'], owner['mobile'], owner['mobile'], owner['email'], owner['email']))
+        projects = cursor.fetchall()
+        
+        # Get owner documents - find all owner IDs with same person details
+        documents = []
+        try:
+            # First get all owner IDs for this person
+            cursor.execute("""
+                SELECT DISTINCT o.id
+                FROM owners o
+                WHERE o.name = %s 
+                    AND (o.mobile = %s OR o.mobile IS NULL OR %s IS NULL)
+                    AND (o.email = %s OR o.email IS NULL OR %s IS NULL)
+            """, (owner['name'], owner['mobile'], owner['mobile'], owner['email'], owner['email']))
+            owner_ids = [row['id'] for row in cursor.fetchall()]
+            
+            if owner_ids:
+                # Get documents for all owner IDs
+                placeholders = ','.join(['%s'] * len(owner_ids))
+                cursor.execute(f"""
+                    SELECT id, document_type, document_name, file_path, file_size, 
+                           uploaded_at, uploaded_by
+                    FROM owner_documents 
+                    WHERE owner_id IN ({placeholders})
+                    ORDER BY uploaded_at DESC
+                """, owner_ids)
+                documents = cursor.fetchall()
+        except mysql.connector.Error as e:
+            # If owner_documents table doesn't exist, just return empty documents
+            print(f"Warning: Could not fetch owner documents: {e}")
+            documents = []
+        
+        # Convert datetime objects
+        all_items = projects + documents
+        for item in all_items:
+            if item:
+                for key, value in item.items():
+                    if isinstance(value, datetime):
+                        item[key] = value.isoformat()
+        
+        return jsonify({
+            'owner': owner,
+            'projects': projects,
+            'documents': documents
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection:
+            connection.close()
+
+@app.route('/api/owners', methods=['POST'])
+@token_required
+def create_owner(current_user):
+    """Create a new owner"""
+    try:
+        data = request.get_json()
+        
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        cursor.execute("""
+            INSERT INTO owners (deal_id, name, mobile, email, aadhar_card, pan_card, address)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (
+            data.get('deal_id'),
+            data.get('name'),
+            data.get('mobile'),
+            data.get('email'),
+            data.get('aadhar_card'),
+            data.get('pan_card'),
+            data.get('address')
+        ))
+        
+        owner_id = cursor.lastrowid
+        connection.commit()
+        
+        return jsonify({'message': 'Owner created successfully', 'owner_id': owner_id})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection:
+            connection.close()
+
+@app.route('/api/owners/<int:owner_id>', methods=['DELETE'])
+@token_required
+def delete_owner(current_user, owner_id):
+    """Delete an owner"""
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        cursor.execute("DELETE FROM owners WHERE id = %s", (owner_id,))
+        connection.commit()
+        
+        return jsonify({'message': 'Owner deleted successfully'})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection:
+            connection.close()
+
+@app.route('/api/owners/<int:owner_id>/documents', methods=['POST'])
+@token_required
+def upload_owner_document(current_user, owner_id):
+    """Upload document for an owner"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        document_type = request.form.get('document_type')
+        
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        # Get owner name for folder
+        cursor.execute("SELECT name FROM owners WHERE id = %s LIMIT 1", (owner_id,))
+        owner = cursor.fetchone()
+        if not owner:
+            return jsonify({'error': 'Owner not found'}), 404
+        
+        owner_folder_name = f"owner_{owner_id}"
+        
+        # Create folder for the owner
+        owner_folder = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(owner_folder_name))
+        os.makedirs(owner_folder, exist_ok=True)
+        
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(owner_folder, filename)
+        file.save(filepath)
+        
+        # Save to database - handle table not existing
+        try:
+            cursor = connection.cursor()
+            cursor.execute("""
+                INSERT INTO owner_documents (owner_id, document_type, document_name, 
+                                           file_path, file_size, uploaded_by)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                owner_id,
+                document_type,
+                filename,
+                os.path.relpath(filepath, app.config['UPLOAD_FOLDER']),
+                os.path.getsize(filepath),
+                current_user
+            ))
+            connection.commit()
+        except mysql.connector.Error as e:
+            # If owner_documents table doesn't exist, return a specific error
+            return jsonify({'error': 'Document management not yet set up. Please contact administrator.'}), 503
+        
+        return jsonify({'message': 'Document uploaded successfully', 'filename': filename})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection:
+            connection.close()
+
+@app.route('/api/owners/<int:owner_id>/documents', methods=['GET'])
+@token_required
+def get_owner_documents(current_user, owner_id):
+    """Get all documents for an owner"""
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        # Check if owner exists and get their details
+        cursor.execute("SELECT id, name, mobile, email FROM owners WHERE id = %s LIMIT 1", (owner_id,))
+        owner = cursor.fetchone()
+        if not owner:
+            return jsonify({'error': 'Owner not found'}), 404
+        
+        # Get documents - find all owner IDs with same person details, then get their documents
+        try:
+            # First get all owner IDs for this person
+            cursor.execute("""
+                SELECT DISTINCT o.id
+                FROM owners o
+                WHERE o.name = %s 
+                    AND (o.mobile = %s OR o.mobile IS NULL OR %s IS NULL)
+                    AND (o.email = %s OR o.email IS NULL OR %s IS NULL)
+            """, (owner['name'], owner['mobile'], owner['mobile'], owner['email'], owner['email']))
+            owner_ids = [row['id'] for row in cursor.fetchall()]
+            
+            documents = []
+            if owner_ids:
+                # Get documents for all owner IDs
+                placeholders = ','.join(['%s'] * len(owner_ids))
+                cursor.execute(f"""
+                    SELECT id, document_type, document_name, file_path, file_size, 
+                           created_at, uploaded_by
+                    FROM owner_documents 
+                    WHERE owner_id IN ({placeholders})
+                    ORDER BY document_type, created_at DESC
+                """, owner_ids)
+                documents = cursor.fetchall()
+            
+            # Group documents by type
+            grouped_docs = {}
+            for doc in documents:
+                doc_type = doc['document_type']
+                if doc_type not in grouped_docs:
+                    grouped_docs[doc_type] = []
+                grouped_docs[doc_type].append({
+                    'id': doc['id'],
+                    'name': doc['document_name'],
+                    'file_path': doc['file_path'],
+                    'file_size': doc['file_size'],
+                    'created_at': doc['created_at'].isoformat() if doc['created_at'] else None,
+                    'uploaded_by': doc['uploaded_by']
+                })
+            
+            return jsonify({
+                'owner': owner,
+                'documents': grouped_docs
+            })
+            
+        except mysql.connector.Error as e:
+            # If owner_documents table doesn't exist, return empty documents
+            return jsonify({
+                'owner': owner,
+                'documents': {}
+            })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection:
+            connection.close()
+
 @app.route('/api/upload', methods=['POST'])
 @token_required
 def upload_file(current_user):
@@ -439,11 +2272,12 @@ def upload_file(current_user):
 def serve_file(filename):
     """Serve uploaded files with proper MIME types for browser viewing"""
     try:
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        
-        # Security check - ensure file exists and is within uploads directory
-        if not os.path.exists(file_path):
-            print(f"File not found: {file_path}")
+        # resolve and ensure path is under the uploads directory to prevent traversal
+        requested = os.path.normpath(filename)
+        file_path = os.path.abspath(os.path.join(app.config['UPLOAD_FOLDER'], requested))
+        uploads_root = os.path.abspath(app.config['UPLOAD_FOLDER'])
+        if not file_path.startswith(uploads_root) or not os.path.exists(file_path):
+            print(f"File not found or outside uploads: {file_path}")
             abort(404)
         
         # Get the directory and filename

@@ -20,6 +20,7 @@ export const dealAPI = {
   getAll: () => api.get('/deals'),
   getById: (id) => api.get(`/deals/${id}`),
   create: (data) => api.post('/deals', data),
+  update: (id, data) => api.put(`/deals/${id}`, data),
   addExpense: (dealId, data) => api.post(`/deals/${dealId}/expenses`, data),
   uploadDocument: (formData) => api.post('/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
