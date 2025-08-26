@@ -10,11 +10,35 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Normalized location tables
+-- States (one row per state/UT)
+CREATE TABLE IF NOT EXISTS states (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Districts belong to a state
+CREATE TABLE IF NOT EXISTS districts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    state_id INT NOT NULL,
+    name VARCHAR(150) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (state_id) REFERENCES states(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_state_district (state_id, name)
+);
+
 -- Deals table (main table)
 CREATE TABLE IF NOT EXISTS deals (
     id INT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(200) NOT NULL,
     location VARCHAR(200),
+    -- Legacy textual state/district kept for backward compatibility
+    state VARCHAR(100),
+    district VARCHAR(100),
+    -- Normalized references (preferred)
+    state_id INT,
+    district_id INT,
     area DECIMAL(10,2),
     price DECIMAL(15,2),
     deal_type ENUM('buy', 'sell', 'lease') DEFAULT 'buy',
@@ -22,6 +46,8 @@ CREATE TABLE IF NOT EXISTS deals (
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    FOREIGN KEY (state_id) REFERENCES states(id) ON DELETE SET NULL,
+    FOREIGN KEY (district_id) REFERENCES districts(id) ON DELETE SET NULL
 );
 
 -- Owners table

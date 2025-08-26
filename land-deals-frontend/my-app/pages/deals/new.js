@@ -20,7 +20,7 @@ export default function NewDeal() {
     taluka: '',
     village: '',
     total_area: '',
-    area_unit: 'Guntha',
+    area_unit: 'Acre',
     purchase_date: '',
     purchase_amount: '',
     selling_amount: '',
@@ -539,13 +539,14 @@ export default function NewDeal() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">Total Area</label>
                     <div className="flex gap-2">
                       <input 
-                        type="number" 
+                        type="text" 
+                        inputMode="decimal"
+                        pattern="[0-9]*\.?[0-9]*"
                         name="total_area" 
                         value={form.total_area} 
                         onChange={handleChange} 
                         placeholder="Enter area"
                         className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                        step="0.01"
                       />
                       <select 
                         name="area_unit" 
@@ -553,8 +554,8 @@ export default function NewDeal() {
                         onChange={handleChange} 
                         className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
-                        <option value="Guntha">Guntha</option>
                         <option value="Acre">Acre</option>
+                        <option value="Guntha">Guntha</option>
                         <option value="Hectare">Hectare</option>
                         <option value="Sq Ft">Sq Ft</option>
                         <option value="Sq Meter">Sq Meter</option>
@@ -566,8 +567,8 @@ export default function NewDeal() {
                   </div>
 
                   <Input type="date" label="Purchase Date" name="purchase_date" value={form.purchase_date} onChange={handleChange} required />
-                  <Input type="number" label="Purchase Amount" name="purchase_amount" value={form.purchase_amount} onChange={handleChange} required />
-                  <Input type="number" label="Selling Amount" name="selling_amount" value={form.selling_amount} onChange={handleChange} />
+                  <Input type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*" label="Purchase Amount" name="purchase_amount" value={form.purchase_amount} onChange={handleChange} required />
+                  <Input type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*" label="Selling Amount" name="selling_amount" value={form.selling_amount} onChange={handleChange} />
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                     <select name="status" value={form.status} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
@@ -842,8 +843,8 @@ export default function NewDeal() {
               render={(inv, idx) => (
                 <>
                   <Input name="investor_name" value={inv.investor_name} onChange={(e) => handleArrayChange('investors', idx, e)} placeholder="Investor Name" required />
-                  <Input type="number" name="investment_amount" value={inv.investment_amount} onChange={(e) => handleArrayChange('investors', idx, e)} placeholder="Amount" required />
-                  <Input type="number" name="investment_percentage" value={inv.investment_percentage} onChange={(e) => handleArrayChange('investors', idx, e)} placeholder="Share (%)" required />
+                  <Input type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*" name="investment_amount" value={inv.investment_amount} onChange={(e) => handleArrayChange('investors', idx, e)} placeholder="Amount" required />
+                  <Input type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*" name="investment_percentage" value={inv.investment_percentage} onChange={(e) => handleArrayChange('investors', idx, e)} placeholder="Share (%)" required />
                   <Input 
                     name="mobile" 
                     type="tel" 
@@ -895,7 +896,7 @@ export default function NewDeal() {
                 <>
                   <Input name="expense_type" value={exp.expense_type} onChange={(e) => handleArrayChange('expenses', idx, e)} placeholder="Type (Survey, Legal...)" required />
                   <Input name="expense_description" value={exp.expense_description} onChange={(e) => handleArrayChange('expenses', idx, e)} placeholder="Description" />
-                  <Input type="number" name="amount" value={exp.amount} onChange={(e) => handleArrayChange('expenses', idx, e)} placeholder="Amount" required />
+                  <Input type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*" name="amount" value={exp.amount} onChange={(e) => handleArrayChange('expenses', idx, e)} placeholder="Amount" required />
                   <Input name="paid_by" value={exp.paid_by} onChange={(e) => handleArrayChange('expenses', idx, e)} placeholder="Paid By (Investor ID)" />
                   <Input type="date" name="expense_date" value={exp.expense_date} onChange={(e) => handleArrayChange('expenses', idx, e)} />
                   <Input name="receipt_number" value={exp.receipt_number} onChange={(e) => handleArrayChange('expenses', idx, e)} placeholder="Receipt Number" />
