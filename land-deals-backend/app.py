@@ -12,6 +12,21 @@ import json
 import mimetypes
 import requests
 
+# Load environment variables from .env file if it exists
+def load_env_file():
+    """Load environment variables from .env file"""
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+    if os.path.exists(env_path):
+        with open(env_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key.strip()] = value.strip()
+
+# Load environment variables
+load_env_file()
+
 app = Flask(__name__)
 app.static_folder = 'uploads'
 app.static_url_path = '/uploads'
@@ -23,10 +38,14 @@ CORS(app, origins='*', supports_credentials=True, methods=['GET', 'POST', 'PUT',
 
 # Database configuration
 DB_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': 'admin@123',
-    'database': 'land_deals_db'
+    'host': 'mysql-3ca7d4a2-romitmeher-d46c.g.aivencloud.com',
+    'port': 17231,
+    'user': 'avnadmin',
+    'password': os.environ.get('DB_PASSWORD', 'YOUR_DB_PASSWORD_HERE'),
+    'database': 'land_deals_db',
+    'ssl_ca': os.path.join(os.path.dirname(__file__), 'ca-certificate.pem'),
+    'ssl_verify_cert': True,
+    'ssl_verify_identity': True
 }
 
 # Create uploads directory if it doesn't exist
@@ -495,6 +514,60 @@ def home():
 @app.route('/api/test', methods=['GET'])
 def test():
     return jsonify({'message': 'API is working correctly!'})
+
+@app.route('/api/status', methods=['GET'])
+def get_status():
+    """Get comprehensive application and database status"""
+    try:
+        connection = get_db_connection()
+        if not connection:
+            return jsonify({
+                'status': 'error',
+                'database': 'disconnected',
+                'message': 'Database connection failed'
+            }), 500
+        
+        cursor = connection.cursor(dictionary=True)
+        
+        # Get database info
+        cursor.execute("SELECT VERSION() as version")
+        db_version = cursor.fetchone()['version']
+        
+        cursor.execute("SELECT DATABASE() as db_name")
+        db_name = cursor.fetchone()['db_name']
+        
+        # Get table counts
+        cursor.execute("SHOW TABLES")
+        tables_result = cursor.fetchall()
+        tables = [list(table.values())[0] for table in tables_result]
+        
+        table_counts = {}
+        for table in tables:
+            cursor.execute(f"SELECT COUNT(*) as count FROM `{table}`")
+            table_counts[table] = cursor.fetchone()['count']
+        
+        return jsonify({
+            'status': 'success',
+            'database': {
+                'connected': True,
+                'host': DB_CONFIG['host'],
+                'database': db_name,
+                'version': db_version,
+                'ssl_enabled': True
+            },
+            'tables': table_counts,
+            'message': 'Application is running successfully with cloud database connection'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'database': 'error',
+            'message': f'Error: {str(e)}'
+        }), 500
+    finally:
+        if 'connection' in locals() and connection:
+            connection.close()
 
 # Location API endpoints
 @app.route('/api/locations/states', methods=['GET'])
