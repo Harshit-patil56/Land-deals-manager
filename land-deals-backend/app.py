@@ -1,5 +1,5 @@
 # app.py - Main Flask Application
-from flask import Flask, request, jsonify, session, send_from_directory, abort
+from flask import Flask, request, jsonify, session, send_from_directory, send_file, abort
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -7,6 +7,17 @@ import mysql.connector
 from datetime import datetime, timedelta
 import jwt
 import os
+import time
+from io import BytesIO
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.utils import ImageReader
+except Exception:
+    # reportlab may not be installed in dev environment; the endpoint will return an error
+    A4 = None
+    canvas = None
+    ImageReader = None
 from functools import wraps
 import json
 import mimetypes
@@ -31,10 +42,13 @@ app = Flask(__name__)
 app.static_folder = 'uploads'
 app.static_url_path = '/uploads'
 app.config['SECRET_KEY'] = 'your-secret-key-here'
-app.config['UPLOAD_FOLDER'] = 'uploads'
+APP_ROOT = os.path.dirname(__file__)
+# Use absolute uploads folder inside backend so static serving works predictably
+app.config['UPLOAD_FOLDER'] = os.path.join(APP_ROOT, 'uploads')
 CORS(app, origins='*', supports_credentials=True, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
      allow_headers=['Content-Type', 'Authorization', 'Range'],
      expose_headers=['Content-Range', 'Accept-Ranges', 'Content-Length', 'Content-Type'])
+
 
 # Database configuration
 DB_CONFIG = {
@@ -72,6 +86,15 @@ def token_required(f):
             if token.startswith('Bearer '):
                 token = token[7:]
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            # expose decoded user on request for permission checks
+            try:
+                request.user = {
+                    'id': data.get('user_id'),
+                    'username': data.get('username'),
+                    'role': data.get('role')
+                }
+            except Exception:
+                request.user = {'id': data.get('user_id')}
             current_user = data['user_id']
         except:
             return jsonify({'error': 'Token is invalid'}), 401
@@ -80,6 +103,927 @@ def token_required(f):
     return decorated
 
 # Routes
+
+# Payments endpoints integrated into app.py (moved here so token_required is defined)
+@app.route('/api/payments/test', methods=['GET'])
+def payments_test():
+    return jsonify({'message': 'Payments endpoints active'})
+
+
+@app.route('/api/payments/<int:deal_id>', methods=['GET'])
+def list_payments(deal_id):
+    """Return all payments for a deal"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT p.* FROM payments p WHERE p.deal_id = %s ORDER BY p.payment_date DESC", (deal_id,))
+        rows = cursor.fetchall() or []
+
+        # convert dates to isoformat where applicable
+        for r in rows:
+            for k in ('payment_date', 'created_at'):
+                if r.get(k) is not None and isinstance(r.get(k), datetime):
+                    r[k] = r[k].isoformat()
+
+        # attach parties for each payment using a fresh cursor (dictionary rows expected)
+        try:
+            party_cursor = conn.cursor(dictionary=True)
+            for r in rows:
+                party_cursor.execute("SELECT id, party_type, party_id, amount, percentage FROM payment_parties WHERE payment_id = %s", (r['id'],))
+                parts = party_cursor.fetchall() or []
+                part_list = []
+                for p in parts:
+                    part_list.append({
+                        'id': p.get('id'),
+                        'party_type': p.get('party_type'),
+                        'party_id': p.get('party_id'),
+                        'amount': float(p.get('amount')) if p.get('amount') is not None else None,
+                        'percentage': float(p.get('percentage')) if p.get('percentage') is not None else None
+                    })
+                r['parties'] = part_list
+        except Exception:
+            for r in rows:
+                r['parties'] = []
+
+        return jsonify(rows)
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/ledger.csv', methods=['GET'])
+@token_required
+def payments_ledger_csv(current_user):
+    """Export ledger results as CSV. Accepts same query params as /api/payments/ledger"""
+    params = request.args
+    deal_id = params.get('deal_id')
+    party_type = params.get('party_type')
+    party_id = params.get('party_id')
+    payment_mode = params.get('payment_mode')
+    start_date = params.get('start_date')
+    end_date = params.get('end_date')
+
+    args = []
+    if party_type or party_id:
+        sql = "SELECT DISTINCT p.* FROM payments p JOIN payment_parties pp ON pp.payment_id = p.id WHERE 1=1"
+        if deal_id:
+            sql += " AND p.deal_id = %s"
+            args.append(deal_id)
+        if party_type:
+            sql += " AND pp.party_type = %s"
+            args.append(party_type)
+        if party_id:
+            sql += " AND pp.party_id = %s"
+            args.append(party_id)
+    else:
+        sql = "SELECT p.* FROM payments p WHERE 1=1"
+        if deal_id:
+            sql += " AND p.deal_id = %s"
+            args.append(deal_id)
+        if payment_mode:
+            sql += " AND p.payment_mode = %s"
+            args.append(payment_mode)
+
+    if start_date:
+        sql += " AND p.payment_date >= %s"
+        args.append(start_date)
+    if end_date:
+        sql += " AND p.payment_date <= %s"
+        args.append(end_date)
+
+    sql += " ORDER BY p.payment_date DESC"
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(sql, tuple(args))
+        cols = [d[0] for d in cursor.description]
+        rows = cursor.fetchall() or []
+
+        import io, csv
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(cols)
+        for r in rows:
+            row = []
+            for v in r:
+                if isinstance(v, datetime):
+                    row.append(v.isoformat())
+                else:
+                    row.append(v)
+            w.writerow(row)
+        csv_data = buf.getvalue()
+        return app.response_class(csv_data, mimetype='text/csv', headers={"Content-Disposition": "attachment; filename=ledger.csv"})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/ledger.pdf', methods=['GET'])
+@token_required
+def payments_ledger_pdf(current_user):
+    """Generate a simple PDF ledger. Embeds the first proof image per payment when present."""
+    if canvas is None:
+        return jsonify({'error': 'reportlab not available on server'}), 500
+
+    params = request.args
+    deal_id = params.get('deal_id')
+    party_type = params.get('party_type')
+    party_id = params.get('party_id')
+    payment_mode = params.get('payment_mode')
+    start_date = params.get('start_date')
+    end_date = params.get('end_date')
+
+    args = []
+    if party_type or party_id:
+        sql = "SELECT DISTINCT p.* FROM payments p JOIN payment_parties pp ON pp.payment_id = p.id WHERE 1=1"
+        if deal_id:
+            sql += " AND p.deal_id = %s"
+            args.append(deal_id)
+        if party_type:
+            sql += " AND pp.party_type = %s"
+            args.append(party_type)
+        if party_id:
+            sql += " AND pp.party_id = %s"
+            args.append(party_id)
+    else:
+        sql = "SELECT p.* FROM payments p WHERE 1=1"
+        if deal_id:
+            sql += " AND p.deal_id = %s"
+            args.append(deal_id)
+        if payment_mode:
+            sql += " AND p.payment_mode = %s"
+            args.append(payment_mode)
+
+    if start_date:
+        sql += " AND p.payment_date >= %s"
+        args.append(start_date)
+    if end_date:
+        sql += " AND p.payment_date <= %s"
+        args.append(end_date)
+
+    sql += " ORDER BY p.payment_date DESC"
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(sql, tuple(args))
+        rows = cursor.fetchall() or []
+
+        # For each payment fetch one proof file path (if any)
+        for r in rows:
+            cursor.execute("SELECT file_path FROM payment_proofs WHERE payment_id = %s ORDER BY uploaded_at DESC LIMIT 1", (r['id'],))
+            p = cursor.fetchone()
+            if p and p.get('file_path'):
+                r['proof'] = p.get('file_path')
+            else:
+                r['proof'] = None
+
+        # Create PDF
+        buff = BytesIO()
+        c = canvas.Canvas(buff, pagesize=A4)
+        width, height = A4
+        y = height - 40
+        c.setFont('Helvetica-Bold', 14)
+        title = f"Payments Ledger {('Deal ' + str(deal_id)) if deal_id else ''}"
+        c.drawString(40, y, title)
+        y -= 30
+        c.setFont('Helvetica', 10)
+
+        for r in rows:
+            if y < 160:
+                c.showPage()
+                y = height - 40
+                c.setFont('Helvetica', 10)
+
+            # Header line with date, id, amount, currency
+            c.setFont('Helvetica-Bold', 11)
+            c.drawString(40, y, f"{r.get('payment_date','')}  | ID: {r.get('id','-')}  | ₹{r.get('amount','')}")
+            c.setFont('Helvetica', 10)
+            c.drawString(400, y, f"{r.get('currency','INR')}")
+            y -= 16
+
+            # Mode, reference, created_by
+            c.drawString(40, y, f"Mode: {r.get('payment_mode','-')}")
+            c.drawString(200, y, f"Reference: {str(r.get('reference') or '-')}" )
+            c.drawString(420, y, f"Created by: {r.get('created_by') or '-'}")
+            y -= 14
+
+            # Notes (trim long)
+            notes = str(r.get('notes') or '')
+            c.drawString(40, y, f"Notes: {notes[:120]}")
+            y -= 14
+
+            # Party splits (if any) — draw a small table with columns
+            if r.get('parties'):
+                parts = r.get('parties') or []
+                if parts:
+                    # Table layout
+                    x0 = 48
+                    col1 = x0
+                    col2 = x0 + 260
+                    col3 = x0 + 360
+                    row_h = 14
+                    # header
+                    c.setFont('Helvetica-Bold', 9)
+                    c.drawString(col1, y, 'Party')
+                    c.drawString(col2, y, 'Percentage')
+                    c.drawString(col3, y, 'Amount')
+                    y -= row_h
+                    c.setFont('Helvetica', 9)
+                    # rows
+                    for pp in parts:
+                        # page break if necessary
+                        if y < 80:
+                            c.showPage()
+                            y = height - 40
+                            c.setFont('Helvetica', 10)
+                        label = pp.get('party_name') or (f"{pp.get('party_type','')} #{pp.get('party_id')}" if pp.get('party_id') else pp.get('party_type',''))
+                        pct = pp.get('percentage')
+                        amt = pp.get('amount')
+                        c.drawString(col1, y, f"{label}")
+                        c.drawString(col2, y, f"{pct if pct is not None else '-'}")
+                        c.drawRightString(col3 + 60, y, f"{('₹' + format(amt, ',.2f')) if amt is not None else '-'}")
+                        y -= row_h
+            else:
+                # draw image thumbnail if proof exists and file present
+                if r.get('proof'):
+                    p = r.get('proof').replace('\\', '/')
+                    idx = p.find('uploads/')
+                    if idx != -1:
+                        rel = p[idx:]
+                        img_path = os.path.abspath(os.path.join(APP_ROOT, rel))
+                        try:
+                            img = ImageReader(img_path)
+                            c.drawImage(img, 40, y-60, width=80, height=60, preserveAspectRatio=True, mask='auto')
+                            y -= 64
+                        except Exception:
+                            pass
+
+            y -= 12
+
+        c.save()
+        buff.seek(0)
+        return send_file(buff, mimetype='application/pdf', as_attachment=True, download_name='ledger.pdf')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/ledger', methods=['GET'])
+def payments_ledger():
+    """Return payments filtered by query parameters:
+    Supported params: deal_id, party_type, party_id, payment_mode, start_date, end_date
+    """
+    params = request.args
+    deal_id = params.get('deal_id')
+    party_type = params.get('party_type')
+    party_id = params.get('party_id')
+    payment_mode = params.get('payment_mode')
+    start_date = params.get('start_date')
+    end_date = params.get('end_date')
+
+    # If filtering by party (party_type or party_id) prefer to join payment_parties
+    args = []
+    if party_type or party_id:
+        sql = "SELECT DISTINCT p.* FROM payments p JOIN payment_parties pp ON pp.payment_id = p.id WHERE 1=1"
+        if deal_id:
+            sql += " AND p.deal_id = %s"
+            args.append(deal_id)
+        if party_type:
+            sql += " AND pp.party_type = %s"
+            args.append(party_type)
+        if party_id:
+            sql += " AND pp.party_id = %s"
+            args.append(party_id)
+    else:
+        sql = "SELECT p.* FROM payments p WHERE 1=1"
+        if deal_id:
+            sql += " AND p.deal_id = %s"
+            args.append(deal_id)
+        if payment_mode:
+            sql += " AND p.payment_mode = %s"
+            args.append(payment_mode)
+
+    if start_date:
+        sql += " AND p.payment_date >= %s"
+        args.append(start_date)
+    if end_date:
+        sql += " AND p.payment_date <= %s"
+        args.append(end_date)
+
+    sql += " ORDER BY p.payment_date DESC"
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(sql, tuple(args))
+        rows = cursor.fetchall() or []
+        for r in rows:
+            for k in ('payment_date', 'created_at'):
+                if r.get(k) is not None and isinstance(r.get(k), datetime):
+                    r[k] = r[k].isoformat()
+        return jsonify(rows)
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/<int:deal_id>', methods=['POST'])
+@token_required
+def create_payment(current_user, deal_id):
+    """Create a payment record for a deal"""
+    data = request.get_json() or {}
+    # normalize party_type to the ENUM allowed values in the DB
+    party_type = data.get('party_type', 'other')
+    allowed_party_types = {'owner', 'buyer', 'investor', 'other'}
+    if party_type not in allowed_party_types:
+        party_type = 'other'
+
+    # normalize party_id to integer or None
+    party_id = data.get('party_id')
+    try:
+        if party_id is None or party_id == '':
+            party_id = None
+        else:
+            party_id = int(party_id)
+    except Exception:
+        party_id = None
+    amount = data.get('amount')
+    currency = data.get('currency', 'INR')
+    payment_date = data.get('payment_date')
+    payment_mode = data.get('payment_mode')
+    reference = data.get('reference')
+    notes = data.get('notes')
+
+    # Validate amount
+    try:
+        if amount is None or amount == '':
+            raise ValueError('amount missing')
+        amount = float(amount)
+    except Exception:
+        return jsonify({'error': 'amount is required and must be a number'}), 400
+
+    # Validate payment_date (required, YYYY-MM-DD)
+    if not payment_date:
+        return jsonify({'error': 'payment_date is required and must be YYYY-MM-DD'}), 400
+    try:
+        parsed = datetime.strptime(payment_date, '%Y-%m-%d').date()
+        payment_date = parsed.strftime('%Y-%m-%d')
+    except Exception:
+        return jsonify({'error': 'payment_date must be in YYYY-MM-DD format'}), 400
+
+    # If parties provided, compute their sum and optionally enforce equality with amount.
+    parties = data.get('parties')
+    try:
+        prepared_parties = []
+        if parties and isinstance(parties, list):
+            for part in parties:
+                pt = part.get('party_type', 'other')
+                pid = part.get('party_id')
+                amt = part.get('amount')
+                pct = part.get('percentage')
+                if pid is not None and pid != '':
+                    try:
+                        pid = int(pid)
+                    except Exception:
+                        pid = None
+                if amt is not None and amt != '':
+                    try:
+                        amt = float(amt)
+                    except Exception:
+                        amt = None
+                if pct is not None and pct != '':
+                    try:
+                        pct = float(pct)
+                    except Exception:
+                        pct = None
+                prepared_parties.append({'party_type': pt, 'party_id': pid, 'amount': amt, 'percentage': pct})
+    except Exception:
+        prepared_parties = []
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        # Start a transaction to ensure payment + parties are atomic
+        conn.start_transaction()
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO payments (deal_id, party_type, party_id, amount, currency, payment_date, payment_mode, reference, notes, created_by)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (deal_id, party_type, party_id, amount, currency, payment_date, payment_mode, reference, notes, current_user)
+        )
+        payment_id = cursor.lastrowid
+
+        # Server-side validation: if prepared_parties provided, ensure consistency
+        if prepared_parties:
+            amounts_provided = any(isinstance(p.get('amount'), (int, float)) for p in prepared_parties)
+            percentages_provided = any(isinstance(p.get('percentage'), (int, float)) for p in prepared_parties)
+
+            # If percentages are provided, ensure they sum to (approximately) 100
+            if percentages_provided:
+                total_pct = sum([p.get('percentage') or 0 for p in prepared_parties])
+                force = request.args.get('force', 'false').lower() == 'true'
+                if abs(total_pct - 100.0) > 0.01 and not force:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                    return jsonify({'error': 'party_percentage_mismatch', 'total_percentage': total_pct}), 400
+
+            # If only percentages are provided (not amounts), compute amounts from payment amount
+            if percentages_provided and not amounts_provided:
+                for p in prepared_parties:
+                    pct = p.get('percentage')
+                    if isinstance(pct, (int, float)):
+                        p['amount'] = round((pct / 100.0) * amount, 2)
+
+            # If amounts are provided, ensure their sum matches payment amount
+            if amounts_provided:
+                total_party_amount = sum([p['amount'] for p in prepared_parties if isinstance(p.get('amount'), (int, float))])
+                force = request.args.get('force', 'false').lower() == 'true'
+                if abs(total_party_amount - amount) > 0.01 and not force:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                    return jsonify({'error': 'party_amount_mismatch', 'payment_amount': amount, 'parties_total': total_party_amount}), 400
+
+        # If request provided multiple parties with shares, persist them to payment_parties
+        if prepared_parties:
+            for part in prepared_parties:
+                try:
+                    cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount, percentage) VALUES (%s,%s,%s,%s,%s)", (payment_id, part.get('party_type', 'other'), part.get('party_id'), part.get('amount'), part.get('percentage')))
+                except mysql.connector.Error as db_e:
+                    # If the DB schema is missing the `percentage` column (1054), retry without it.
+                    try:
+                        if getattr(db_e, 'errno', None) == 1054 or 'Unknown column' in str(db_e):
+                            cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount) VALUES (%s,%s,%s,%s)", (payment_id, part.get('party_type', 'other'), part.get('party_id'), part.get('amount')))
+                        else:
+                            raise
+                    except Exception:
+                        # Bubble up original error so outer except catches and returns 500
+                        raise
+
+        # commit transaction
+        conn.commit()
+
+        return jsonify({'message': 'Payment recorded', 'payment_id': payment_id}), 201
+    except Exception as e:
+        # rollback on error
+        try:
+            if conn:
+                conn.rollback()
+        except Exception:
+            pass
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/<int:deal_id>/<int:payment_id>', methods=['PUT'])
+@token_required
+def annotate_payment(current_user, deal_id, payment_id):
+    """Add notes or update a payment's reference/notes"""
+    data = request.get_json() or {}
+    fields = {}
+    for k in ('reference', 'notes', 'payment_mode', 'amount', 'payment_date'):
+        if k in data:
+            fields[k] = data[k]
+
+    if not fields:
+        return jsonify({'error': 'No updatable fields provided'}), 400
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+        params = list(fields.values()) + [deal_id, payment_id]
+        cursor.execute(f"UPDATE payments SET {set_clause} WHERE deal_id = %s AND id = %s", params)
+        conn.commit()
+        return jsonify({'message': 'Payment updated'})
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/<int:deal_id>/<int:payment_id>', methods=['DELETE'])
+@token_required
+def delete_payment(current_user, deal_id, payment_id):
+    """Delete a payment and its proof files (admin or owner)."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Fetch proofs to delete files
+        cursor.execute("SELECT id, file_path FROM payment_proofs WHERE payment_id = %s", (payment_id,))
+        proofs = cursor.fetchall()
+
+        # Permission check: only admins or creator of payment can delete
+        try:
+            cursor.execute("SELECT created_by FROM payments WHERE id = %s AND deal_id = %s", (payment_id, deal_id))
+            p = cursor.fetchone()
+            created_by = p.get('created_by') if p else None
+        except Exception:
+            created_by = None
+
+        role = None
+        try:
+            role = request.user.get('role')
+        except Exception:
+            role = None
+
+        if not (role == 'admin' or created_by == current_user):
+            return jsonify({'error': 'forbidden'}), 403
+
+        # Delete DB rows for proofs
+        cursor.execute("DELETE FROM payment_proofs WHERE payment_id = %s", (payment_id,))
+
+        # Delete payment row
+        cursor.execute("DELETE FROM payments WHERE deal_id = %s AND id = %s", (deal_id, payment_id))
+        conn.commit()
+
+        # remove files from disk (best-effort)
+        for pr in proofs:
+            fp = pr.get('file_path')
+            if not fp:
+                continue
+            # Normalize: find uploads/ inside path
+            p = fp.replace('\\', '/')
+            idx = p.find('uploads/')
+            if idx != -1:
+                rel = p[idx:]
+                # compute absolute path relative to the configured UPLOAD_FOLDER
+                abs_path = os.path.abspath(os.path.join(app.config['UPLOAD_FOLDER'], os.path.relpath(rel.replace('uploads/', ''), '')))
+                try:
+                    # ensure the abs_path is inside UPLOAD_FOLDER
+                    if abs_path.startswith(os.path.abspath(app.config['UPLOAD_FOLDER'])) and os.path.exists(abs_path):
+                        os.remove(abs_path)
+                except Exception:
+                    pass
+
+        return jsonify({'message': 'Payment and proofs deleted'})
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/<int:payment_id>/parties', methods=['POST'])
+@token_required
+def add_payment_party(current_user, payment_id):
+    """Add a party share to an existing payment."""
+    data = request.get_json() or {}
+    pt = data.get('party_type', 'other')
+    pid = data.get('party_id')
+    amt = data.get('amount')
+    pct = data.get('percentage')
+    try:
+        if pid is not None and pid != '':
+            pid = int(pid)
+    except Exception:
+        pid = None
+    try:
+        if amt is not None and amt != '':
+            amt = float(amt)
+    except Exception:
+        amt = None
+    try:
+        if pct is not None and pct != '':
+            pct = float(pct)
+    except Exception:
+        pct = None
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount, percentage) VALUES (%s,%s,%s,%s,%s)", (payment_id, pt, pid, amt, pct))
+        except mysql.connector.Error as db_e:
+            if getattr(db_e, 'errno', None) == 1054 or 'Unknown column' in str(db_e):
+                cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount) VALUES (%s,%s,%s,%s)", (payment_id, pt, pid, amt))
+            else:
+                raise
+        conn.commit()
+        return jsonify({'message': 'party_added', 'party_id': cursor.lastrowid}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/parties/<int:party_id>', methods=['PUT'])
+@token_required
+def update_payment_party(current_user, party_id):
+    data = request.get_json() or {}
+    fields = {}
+    for k in ('party_type', 'party_id', 'amount', 'percentage'):
+        if k in data:
+            fields[k] = data[k]
+    if not fields:
+        return jsonify({'error': 'no fields to update'}), 400
+    # normalize
+    if 'party_id' in fields:
+        try:
+            fields['party_id'] = int(fields['party_id'])
+        except Exception:
+            fields['party_id'] = None
+    if 'amount' in fields:
+        try:
+            fields['amount'] = float(fields['amount'])
+        except Exception:
+            fields['amount'] = None
+    if 'percentage' in fields:
+        try:
+            fields['percentage'] = float(fields['percentage'])
+        except Exception:
+            fields['percentage'] = None
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        set_clause = ', '.join([f"{k} = %s" for k in fields.keys()])
+        params = list(fields.values()) + [party_id]
+        try:
+            cursor.execute(f"UPDATE payment_parties SET {set_clause} WHERE id = %s", params)
+        except mysql.connector.Error as db_e:
+            # If percentage column doesn't exist and it's in set_clause, retry without it
+            if (getattr(db_e, 'errno', None) == 1054 or 'Unknown column' in str(db_e)) and 'percentage' in set_clause:
+                # Build a reduced clause removing percentage
+                reduced_fields = {k: v for k, v in fields.items() if k != 'percentage'}
+                if not reduced_fields:
+                    return jsonify({'error': 'percentage column not present on server'}), 500
+                set_clause2 = ', '.join([f"{k} = %s" for k in reduced_fields.keys()])
+                params2 = list(reduced_fields.values()) + [party_id]
+                cursor.execute(f"UPDATE payment_parties SET {set_clause2} WHERE id = %s", params2)
+            else:
+                raise
+        conn.commit()
+        return jsonify({'message': 'party_updated'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/parties/<int:party_id>', methods=['DELETE'])
+@token_required
+def delete_payment_party(current_user, party_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM payment_parties WHERE id = %s", (party_id,))
+        conn.commit()
+        return jsonify({'message': 'party_deleted'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/deals/<int:deal_id>/financials', methods=['GET'])
+@token_required
+def deal_financials(current_user, deal_id):
+    """Return a financial summary for a deal: totals for payments by mode, total expenses, investments, owners' shares (if profit_allocation set), and simple P&L estimate."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # total payments grouped by payment_mode
+        cursor.execute("SELECT payment_mode, SUM(amount) as total FROM payments WHERE deal_id = %s GROUP BY payment_mode", (deal_id,))
+        payments_by_mode = cursor.fetchall() or []
+
+        # total payments overall
+        cursor.execute("SELECT SUM(amount) as total_payments FROM payments WHERE deal_id = %s", (deal_id,))
+        total_pay = cursor.fetchone() or {}
+
+        # total expenses
+        cursor.execute("SELECT SUM(amount) as total_expenses FROM expenses WHERE deal_id = %s", (deal_id,))
+        total_exp = cursor.fetchone() or {}
+
+        # total investments
+        cursor.execute("SELECT SUM(investment_amount) as total_invested FROM investors WHERE deal_id = %s", (deal_id,))
+        total_inv = cursor.fetchone() or {}
+
+        # owners count and basic split if profit_allocation exists on deals
+        cursor.execute("SELECT profit_allocation, purchase_amount, selling_amount FROM deals WHERE id = %s", (deal_id,))
+        deal = cursor.fetchone() or {}
+
+        # basic profit calculation if selling and purchase present
+        profit = None
+        try:
+            pur = float(deal.get('purchase_amount') or 0)
+            sell = float(deal.get('selling_amount') or 0)
+            profit = sell - pur if (pur and sell) else None
+        except Exception:
+            profit = None
+
+        return jsonify({
+            'payments_by_mode': payments_by_mode,
+            'total_payments': total_pay.get('total_payments'),
+            'total_expenses': total_exp.get('total_expenses'),
+            'total_invested': total_inv.get('total_invested'),
+            'deal_profit_estimate': profit,
+            'profit_allocation': deal.get('profit_allocation')
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/<int:deal_id>/<int:payment_id>/proofs/<int:proof_id>', methods=['DELETE'])
+@token_required
+def delete_proof(current_user, deal_id, payment_id, proof_id):
+    """Delete a single proof by id (best-effort file removal)."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT file_path, uploaded_by FROM payment_proofs WHERE id = %s AND payment_id = %s", (proof_id, payment_id))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'proof not found'}), 404
+
+        # permission: only admin or uploader can delete
+        uploader = row.get('uploaded_by')
+        role = None
+        try:
+            role = request.user.get('role')
+        except Exception:
+            role = None
+        if not (role == 'admin' or uploader == current_user):
+            return jsonify({'error': 'forbidden'}), 403
+
+        # delete DB row
+        cursor.execute("DELETE FROM payment_proofs WHERE id = %s", (proof_id,))
+        conn.commit()
+
+        # delete file
+        fp = row.get('file_path')
+        if fp:
+            p = fp.replace('\\', '/')
+            idx = p.find('uploads/')
+            if idx != -1:
+                rel = p[idx:]
+                abs_path = os.path.join(APP_ROOT, rel)
+                try:
+                    if os.path.exists(abs_path):
+                        os.remove(abs_path)
+                except Exception:
+                    pass
+
+        return jsonify({'message': 'proof deleted'})
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/payments/<int:deal_id>/<int:payment_id>/proof', methods=['POST'])
+@token_required
+def upload_payment_proof(current_user, deal_id, payment_id):
+    """Upload an image/file as proof for a payment. Expects form-data with key 'proof'."""
+    if 'proof' not in request.files:
+        return jsonify({'error': 'No proof file provided (use form field name "proof")'}), 400
+
+    file = request.files['proof']
+    if file.filename == '':
+        return jsonify({'error': 'Empty filename'}), 400
+
+    # Validation: accept any file type, but enforce size limit and secure filename
+    MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5 MB
+
+    # prefix filename with a timestamp to avoid collisions
+    base = secure_filename(file.filename)
+    ts = str(int(time.time()))
+    safe_name = f"{ts}_{base}"
+
+    # Size check (attempt to use content_length or file.stream)
+    size = None
+    try:
+        if hasattr(file, 'content_length') and file.content_length:
+            size = int(file.content_length)
+        else:
+            # try to seek stream
+            stream = file.stream
+            stream.seek(0, os.SEEK_END)
+            size = stream.tell()
+            stream.seek(0)
+    except Exception:
+        size = None
+
+    if size is not None and size > MAX_UPLOAD_SIZE:
+        return jsonify({'error': 'File too large, max 5MB'}), 400
+
+    # Save file under uploads/deal_<id>/payments/<payment_id>/
+    # Save file under uploads/deal_<id>/payments/<payment_id>/
+    save_dir = os.path.join(app.config['UPLOAD_FOLDER'], f'deal_{deal_id}', 'payments', str(payment_id))
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, safe_name)
+    try:
+        file.save(save_path)
+    except Exception as e:
+        return jsonify({'error': f'Failed to save file: {e}'}), 500
+
+    # Store a web-friendly path starting with uploads/ so the frontend can request /uploads/...
+    # e.g. uploads/deal_50/payments/3/project.jpg
+    # Use a web-relative path (do not store the server absolute uploads folder path)
+    web_rel = os.path.join('uploads', f'deal_{deal_id}', 'payments', str(payment_id), safe_name).replace('\\', '/')
+
+    # Optional document type (e.g., receipt, bank_transfer, cheque, cash, upi, contra)
+    doc_type = request.form.get('doc_type')
+
+    # Persist metadata to payment_proofs table (if present)
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # include doc_type if column exists (migration adds it)
+        try:
+            cursor.execute("INSERT INTO payment_proofs (payment_id, file_path, uploaded_by, doc_type) VALUES (%s,%s,%s,%s)", (payment_id, web_rel, current_user, doc_type))
+        except Exception:
+            # fallback if column doesn't exist
+            cursor.execute("INSERT INTO payment_proofs (payment_id, file_path, uploaded_by) VALUES (%s,%s,%s)", (payment_id, web_rel, current_user))
+        conn.commit()
+        proof_id = cursor.lastrowid
+    except mysql.connector.Error as e:
+        # If table doesn't exist or insert fails, still return success for file save but warn
+        return jsonify({'warning': 'file_saved_but_db_insert_failed', 'file_path': web_rel, 'db_error': str(e)}), 200
+    finally:
+        if conn:
+            conn.close()
+
+    return jsonify({'message': 'proof_uploaded', 'proof_id': proof_id, 'file_path': web_rel}), 201
+
+
+@app.route('/api/payments/<int:deal_id>/<int:payment_id>/proofs', methods=['GET'])
+def list_payment_proofs(deal_id, payment_id):
+    """Return list of proof records for a given payment."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id, file_path, uploaded_by, uploaded_at FROM payment_proofs WHERE payment_id = %s ORDER BY uploaded_at DESC", (payment_id,))
+        rows = cursor.fetchall()
+        # Convert file_path to a URL path the frontend can load (uploads are served at /uploads/...)
+        for r in rows:
+            if r.get('file_path'):
+                p = r['file_path'].replace('\\', '/')
+                # If path contains 'uploads/...', trim any leading '../' or other segments
+                idx = p.find('uploads/')
+                if idx != -1:
+                    p = '/' + p[idx:]
+                else:
+                    # ensure it starts with /
+                    if not p.startswith('/'):
+                        p = '/' + p
+                # Build an absolute URL so the frontend (which may be on a different origin) can fetch the file
+                try:
+                    base = request.host_url.rstrip('/')
+                    r['url'] = f"{base}{p}"
+                except Exception:
+                    # fallback to the path-only URL
+                    r['url'] = p
+            # include doc_type if present
+            if r.get('doc_type'):
+                r['doc_type'] = r.get('doc_type')
+        return jsonify(rows)
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -99,7 +1043,16 @@ def login():
         cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
         user = cursor.fetchone()
         
-        if user and password == user['password']:  # In production, use hashed passwords
+        stored = user.get('password') if user else None
+        ok = False
+        if stored:
+            # if stored looks like a hashed password use check_password_hash, otherwise plain compare
+            try:
+                ok = check_password_hash(stored, password)
+            except Exception:
+                ok = (password == stored)
+
+        if user and ok:
             token = jwt.encode({
                 'user_id': user['id'],
                 'username': user['username'],
@@ -439,11 +1392,12 @@ def upload_file(current_user):
 def serve_file(filename):
     """Serve uploaded files with proper MIME types for browser viewing"""
     try:
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        
-        # Security check - ensure file exists and is within uploads directory
-        if not os.path.exists(file_path):
-            print(f"File not found: {file_path}")
+        # resolve and ensure path is under the uploads directory to prevent traversal
+        requested = os.path.normpath(filename)
+        file_path = os.path.abspath(os.path.join(app.config['UPLOAD_FOLDER'], requested))
+        uploads_root = os.path.abspath(app.config['UPLOAD_FOLDER'])
+        if not file_path.startswith(uploads_root) or not os.path.exists(file_path):
+            print(f"File not found or outside uploads: {file_path}")
             abort(404)
         
         # Get the directory and filename

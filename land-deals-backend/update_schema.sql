@@ -95,3 +95,24 @@ INSERT IGNORE INTO states (name) VALUES
 
 -- NOTE: District seeding is intentionally left out to avoid an overly large script; import districts via a separate migration
 -- or populate from the frontend mapping data if desired.
+
+-- Add payments table
+CREATE TABLE IF NOT EXISTS payments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    deal_id INT NOT NULL,
+    party_type ENUM('owner','buyer','investor','other') DEFAULT 'other',
+    party_id INT DEFAULT NULL,
+    amount DECIMAL(15,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'INR',
+    payment_date DATE NOT NULL,
+    payment_mode VARCHAR(50),
+    reference VARCHAR(255),
+    notes TEXT,
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (deal_id) REFERENCES deals(id) ON DELETE CASCADE
+);
+
+-- Indexes for quick lookups
+CREATE INDEX IF NOT EXISTS idx_payments_deal_id ON payments(deal_id);
+CREATE INDEX IF NOT EXISTS idx_payments_party ON payments(party_type, party_id);
