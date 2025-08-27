@@ -73,7 +73,7 @@ export default function Dashboard() {
       </div>
 
       {/* Page Header - Full Width */}
-      <div className="bg-white border-b border-slate-200 w-full">
+      <div className="w-full">
         <div className="px-6 py-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -404,34 +404,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-
-      {/* Footer - Full Width */}
-      <footer className="bg-white border-t border-slate-200 w-full mt-12">
-        <div className="px-6 py-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center space-x-6 text-sm text-slate-600">
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">System Status:</span>
-                <span className="ml-2 inline-flex items-center px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
-                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1"></div>
-                  Online
-                </span>
-              </div>
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Last Backup:</span>
-                <span className="ml-2">{new Date().toLocaleDateString()}</span>
-              </div>
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Version:</span>
-                <span className="ml-2">v1.2.0</span>
-              </div>
-            </div>
-            <div className="mt-4 lg:mt-0 text-sm text-slate-500">
-              Property Management System © 2025
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }

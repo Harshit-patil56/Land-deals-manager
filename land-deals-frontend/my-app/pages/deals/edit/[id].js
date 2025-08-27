@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import { dealAPI } from '../../../lib/api';
-import { getUser } from '../../../lib/auth';
+import { getUser, logout } from '../../../lib/auth';
 import toast from 'react-hot-toast';
 import * as locationAPI from '../../../lib/locationAPI';
+import Navbar from '../../../components/layout/Navbar';
 
 export default function EditDeal() {
   const router = useRouter();
@@ -49,7 +51,12 @@ export default function EditDeal() {
   });
 
   useEffect(() => {
-    setUser(getUser());
+    const currentUser = getUser();
+    if (!currentUser) {
+      router.push('/login');
+      return;
+    }
+    setUser(currentUser);
     setAuthChecked(true);
     loadStates();
   }, []);
@@ -64,10 +71,11 @@ export default function EditDeal() {
   const loadStates = async () => {
     setLocationLoading(prev => ({ ...prev, states: true }));
     try {
-      const states = await locationAPI.getStates();
+      const states = await locationAPI.fetchStates();
       setLocationData(prev => ({ ...prev, states }));
     } catch (error) {
       console.error('Error loading states:', error);
+      toast.error('Failed to load states');
     } finally {
       setLocationLoading(prev => ({ ...prev, states: false }));
     }
@@ -77,38 +85,13 @@ export default function EditDeal() {
     if (!state) return;
     setLocationLoading(prev => ({ ...prev, districts: true }));
     try {
-      const districts = await locationAPI.getDistricts(state);
+      const districts = await locationAPI.fetchDistricts(null, state);
       setLocationData(prev => ({ ...prev, districts, talukas: [], villages: [] }));
     } catch (error) {
       console.error('Error loading districts:', error);
+      toast.error('Failed to load districts');
     } finally {
       setLocationLoading(prev => ({ ...prev, districts: false }));
-    }
-  };
-
-  const loadTalukas = async (district) => {
-    if (!district) return;
-    setLocationLoading(prev => ({ ...prev, talukas: true }));
-    try {
-      const talukas = await locationAPI.getTalukas(district);
-      setLocationData(prev => ({ ...prev, talukas, villages: [] }));
-    } catch (error) {
-      console.error('Error loading talukas:', error);
-    } finally {
-      setLocationLoading(prev => ({ ...prev, talukas: false }));
-    }
-  };
-
-  const loadVillages = async (taluka) => {
-    if (!taluka) return;
-    setLocationLoading(prev => ({ ...prev, villages: true }));
-    try {
-      const villages = await locationAPI.getVillages(taluka);
-      setLocationData(prev => ({ ...prev, villages }));
-    } catch (error) {
-      console.error('Error loading villages:', error);
-    } finally {
-      setLocationLoading(prev => ({ ...prev, villages: false }));
     }
   };
 
@@ -173,12 +156,6 @@ export default function EditDeal() {
       // Load location data based on existing values
       if (dealData.deal?.state) {
         await loadDistricts(dealData.deal.state);
-        if (dealData.deal?.district) {
-          await loadTalukas(dealData.deal.district);
-          if (dealData.deal?.taluka) {
-            await loadVillages(dealData.deal.taluka);
-          }
-        }
       }
     } catch (error) {
       console.error('Error fetching deal:', error);
@@ -201,11 +178,7 @@ export default function EditDeal() {
       loadDistricts(value);
       setForm(prev => ({ ...prev, district: '', taluka: '', village: '' }));
     } else if (name === 'district') {
-      loadTalukas(value);
       setForm(prev => ({ ...prev, taluka: '', village: '' }));
-    } else if (name === 'taluka') {
-      loadVillages(value);
-      setForm(prev => ({ ...prev, village: '' }));
     }
   };
 
@@ -253,12 +226,20 @@ export default function EditDeal() {
     }
   };
 
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
+  };
+
   if (!authChecked || fetchLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading deal data...</p>
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-lg shadow-sm border border-slate-200 mb-6">
+            <div className="w-8 h-8 border-3 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading Deal Data</h3>
+          <p className="text-slate-600">Please wait while we fetch the information</p>
         </div>
       </div>
     );
@@ -275,593 +256,804 @@ export default function EditDeal() {
   const expenseTemplate = { expense_type: '', expense_description: '', amount: '', paid_by: '', expense_date: '', receipt_number: '' };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-bold text-gray-900">Edit Deal</h1>
-              <button
-                onClick={() => router.push(`/deals/${id}`)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                Cancel
-              </button>
+    <div className="min-h-screen bg-slate-50">
+      {/* Navigation - Full Width */}
+      <div className="bg-white shadow-sm border-b border-slate-200 w-full">
+        <Navbar user={user} onLogout={handleLogout} />
+      </div>
+
+      {/* Page Header - Full Width */}
+      <div className="bg-white border-b border-slate-200 w-full">
+        <div className="px-6 py-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Link href={`/deals/${id}`}>
+                <span className="mr-4 p-2 hover:bg-slate-200 rounded-lg transition-colors duration-200 cursor-pointer">
+                  <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                </span>
+              </Link>
+              <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center mr-4">
+                <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">Edit Deal</h1>
+                <p className="text-slate-600 mt-1">Update the deal information and related data</p>
+              </div>
             </div>
-            <p className="mt-1 text-sm text-gray-600">Update the deal information and related data</p>
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-slate-600">
+                <span className="font-medium">Deal ID:</span>
+                <span className="ml-2">#{id}</span>
+              </div>
+              <Link href={`/deals/${id}`}>
+                <span className="inline-flex items-center px-4 py-2 border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-all duration-200 font-semibold cursor-pointer rounded-lg">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Cancel
+                </span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content - Full Width Grid Layout */}
+      <div className="w-full px-6 py-8">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+          
+          {/* Left Sidebar - Form Guidelines & Progress */}
+          <div className="xl:col-span-1 space-y-6">
+            
+            {/* Form Progress */}
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+              <div className="px-6 py-5 border-b border-slate-200 bg-slate-50">
+                <h3 className="text-lg font-semibold text-slate-900 flex items-center">
+                  <svg className="w-5 h-5 text-slate-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  Edit Progress
+                </h3>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${form.project_name ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
+                  <span className="text-sm text-slate-600">Basic Information</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${form.owners.some(o => o.name) ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
+                  <span className="text-sm text-slate-600">Owners ({form.owners.length})</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${form.buyers.some(b => b.name) ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
+                  <span className="text-sm text-slate-600">Buyers ({form.buyers.length})</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${form.investors.some(i => i.investor_name) ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
+                  <span className="text-sm text-slate-600">Investors ({form.investors.length})</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${form.expenses.some(e => e.expense_type) ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
+                  <span className="text-sm text-slate-600">Expenses ({form.expenses.length})</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Stats */}
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+              <div className="px-6 py-5 border-b border-slate-200 bg-emerald-50">
+                <h3 className="text-lg font-semibold text-slate-900 flex items-center">
+                  <svg className="w-5 h-5 text-emerald-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  Financial Summary
+                </h3>
+              </div>
+              <div className="p-6 space-y-4">
+                {form.purchase_amount && (
+                  <div>
+                    <p className="text-sm text-slate-600 mb-1">Purchase Amount</p>
+                    <p className="text-xl font-bold text-slate-900">₹{parseFloat(form.purchase_amount || 0).toLocaleString('en-IN')}</p>
+                  </div>
+                )}
+                {form.selling_amount && (
+                  <div>
+                    <p className="text-sm text-emerald-600 mb-1">Selling Amount</p>
+                    <p className="text-xl font-bold text-emerald-700">₹{parseFloat(form.selling_amount || 0).toLocaleString('en-IN')}</p>
+                  </div>
+                )}
+                {form.selling_amount && form.purchase_amount && (
+                  <div className="pt-4 border-t border-slate-200">
+                    <p className="text-sm text-slate-600 mb-1">Potential P&L</p>
+                    <p className={`text-xl font-bold ${
+                      (parseFloat(form.selling_amount || 0) - parseFloat(form.purchase_amount || 0)) >= 0 ? 'text-emerald-600' : 'text-red-600'
+                    }`}>
+                      ₹{((parseFloat(form.selling_amount || 0) - parseFloat(form.purchase_amount || 0)) || 0).toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Form Tips */}
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+              <div className="px-6 py-5 border-b border-slate-200 bg-slate-50">
+                <h3 className="text-lg font-semibold text-slate-900">Form Tips</h3>
+              </div>
+              <div className="p-6 space-y-3 text-sm text-slate-600">
+                <div className="flex items-start space-x-2">
+                  <svg className="w-4 h-4 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Changes are auto-saved to your session</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <svg className="w-4 h-4 text-emerald-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Add multiple owners, buyers, investors as needed</span>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <svg className="w-4 h-4 text-orange-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  <span>All fields are optional except project name</span>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-8">
-            {/* Basic Deal Information */}
-            <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
-                Basic Information
-              </h2>
+          {/* Main Form Content - Takes 3/4 of the width */}
+          <div className="xl:col-span-3">
+            <form onSubmit={handleSubmit} className="space-y-8">
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Project Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="project_name"
-                    value={form.project_name}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
+              {/* Basic Deal Information */}
+              <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+                <div className="px-6 py-5 border-b border-slate-200 bg-slate-50">
+                  <div className="flex items-center">
+                    <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center mr-4">
+                      <span className="text-white font-bold">1</span>
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-semibold text-slate-900">Basic Information</h2>
+                      <p className="text-sm text-slate-600 mt-1">Essential details about the property deal</p>
+                    </div>
+                  </div>
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Survey Number
-                  </label>
-                  <input
-                    type="text"
-                    name="survey_number"
-                    value={form.survey_number}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              </div>
+                <div className="p-6 space-y-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">
+                        Project Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="project_name"
+                        value={form.project_name}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200"
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">
+                        Survey Number
+                      </label>
+                      <input
+                        type="text"
+                        name="survey_number"
+                        value={form.survey_number}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200"
+                      />
+                    </div>
+                  </div>
 
-              {/* Location Fields */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">State *</label>
-                  <select
-                    name="state"
-                    value={form.state}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  >
-                    <option value="">Select State</option>
-                    {locationData.states.map(state => (
-                      <option key={state} value={state}>{state}</option>
-                    ))}
-                  </select>
-                </div>
+                  {/* Location Fields */}
+                  <div>
+                    <h3 className="text-lg font-medium text-slate-900 mb-4">Location Details</h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">State <span className="text-red-500">*</span></label>
+                        <select
+                          name="state"
+                          value={form.state}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                          required
+                        >
+                          <option value="">Select State</option>
+                          {locationData.states.map(state => (
+                            <option key={state.id || state.name || state} value={state.name || state}>
+                              {state.name || state}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">District *</label>
-                  <select
-                    name="district"
-                    value={form.district}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                    disabled={locationLoading.districts}
-                  >
-                    <option value="">Select District</option>
-                    {locationData.districts.map(district => (
-                      <option key={district} value={district}>{district}</option>
-                    ))}
-                  </select>
-                </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">District <span className="text-red-500">*</span></label>
+                        <select
+                          name="district"
+                          value={form.district}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                          required
+                          disabled={locationLoading.districts}
+                        >
+                          <option value="">Select District</option>
+                          {locationData.districts.map(district => (
+                            <option key={district.id || district.name || district} value={district.name || district}>
+                              {district.name || district}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Taluka</label>
-                  <select
-                    name="taluka"
-                    value={form.taluka}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    disabled={locationLoading.talukas}
-                  >
-                    <option value="">Select Taluka</option>
-                    {locationData.talukas.map(taluka => (
-                      <option key={taluka} value={taluka}>{taluka}</option>
-                    ))}
-                  </select>
-                </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Taluka</label>
+                        <input
+                          type="text"
+                          name="taluka"
+                          value={form.taluka}
+                          onChange={handleChange}
+                          placeholder="Enter taluka name"
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200"
+                        />
+                      </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Village</label>
-                  <select
-                    name="village"
-                    value={form.village}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    disabled={locationLoading.villages}
-                  >
-                    <option value="">Select Village</option>
-                    {locationData.villages.map(village => (
-                      <option key={village} value={village}>{village}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Village</label>
+                        <input
+                          type="text"
+                          name="village"
+                          value={form.village}
+                          onChange={handleChange}
+                          placeholder="Enter village name"
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200"
+                        />
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Total Area
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    name="total_area"
-                    value={form.total_area}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Area Unit
-                  </label>
-                  <select
-                    name="area_unit"
-                    value={form.area_unit}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="Acre">Acre</option>
-                    <option value="Hectare">Hectare</option>
-                    <option value="Sq Ft">Sq Ft</option>
-                    <option value="Sq Meter">Sq Meter</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Purchase Date
-                  </label>
-                  <input
-                    type="date"
-                    name="purchase_date"
-                    value={form.purchase_date}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              </div>
+                  {/* Area and Date */}
+                  <div>
+                    <h3 className="text-lg font-medium text-slate-900 mb-4">Property & Purchase Details</h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Total Area</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          name="total_area"
+                          value={form.total_area}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Area Unit</label>
+                        <select
+                          name="area_unit"
+                          value={form.area_unit}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        >
+                          <option value="Acre">Acre</option>
+                          <option value="Hectare">Hectare</option>
+                          <option value="Sq Ft">Sq Ft</option>
+                          <option value="Sq Meter">Sq Meter</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Purchase Date</label>
+                        <input
+                          type="date"
+                          name="purchase_date"
+                          value={form.purchase_date}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200"
+                        />
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Purchase Amount (₹)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    name="purchase_amount"
-                    value={form.purchase_amount}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Selling Amount (₹)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    name="selling_amount"
-                    value={form.selling_amount}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Status
-                  </label>
-                  <select
-                    name="status"
-                    value={form.status}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="open">Open</option>
-                    <option value="active">Active</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                </div>
-              </div>
+                  {/* Financial Information */}
+                  <div>
+                    <h3 className="text-lg font-medium text-slate-900 mb-4">Financial Information</h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Purchase Amount (₹)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          name="purchase_amount"
+                          value={form.purchase_amount}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Selling Amount (₹)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          name="selling_amount"
+                          value={form.selling_amount}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Status</label>
+                        <select
+                          name="status"
+                          value={form.status}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        >
+                          <option value="open">Open</option>
+                          <option value="active">Active</option>
+                          <option value="completed">Completed</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Payment Mode
-                  </label>
-                  <select
-                    name="payment_mode"
-                    value={form.payment_mode}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">Select Payment Mode</option>
-                    <option value="cash">Cash</option>
-                    <option value="bank_transfer">Bank Transfer</option>
-                    <option value="cheque">Cheque</option>
-                    <option value="mixed">Mixed</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Profit Allocation
-                  </label>
-                  <input
-                    type="text"
-                    name="profit_allocation"
-                    value={form.profit_allocation}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="e.g., 50-50, 60-40, etc."
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Owners Section */}
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
-                  Property Owners
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => addArrayItem('owners', ownerTemplate)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                >
-                  Add Owner
-                </button>
-              </div>
-              
-              {form.owners.map((owner, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-gray-900">Owner {index + 1}</h3>
-                    {form.owners.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeArrayItem(index, 'owners')}
-                        className="text-red-500 hover:text-red-700 text-sm"
+                  {/* Payment Details */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Payment Mode</label>
+                      <select
+                        name="payment_mode"
+                        value={form.payment_mode}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
                       >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <input
-                      type="text"
-                      value={owner.name}
-                      onChange={(e) => handleArrayChange(index, 'name', e.target.value, 'owners')}
-                      placeholder="Full Name"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="tel"
-                      value={owner.mobile}
-                      onChange={(e) => handleArrayChange(index, 'mobile', e.target.value, 'owners')}
-                      placeholder="Mobile Number"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="email"
-                      value={owner.email}
-                      onChange={(e) => handleArrayChange(index, 'email', e.target.value, 'owners')}
-                      placeholder="Email"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="text"
-                      value={owner.aadhar_card}
-                      onChange={(e) => handleArrayChange(index, 'aadhar_card', e.target.value, 'owners')}
-                      placeholder="Aadhar Card"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="text"
-                      value={owner.pan_card}
-                      onChange={(e) => handleArrayChange(index, 'pan_card', e.target.value, 'owners')}
-                      placeholder="PAN Card"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="text"
-                      value={owner.address}
-                      onChange={(e) => handleArrayChange(index, 'address', e.target.value, 'owners')}
-                      placeholder="Address"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
+                        <option value="">Select Payment Mode</option>
+                        <option value="cash">Cash</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                        <option value="cheque">Cheque</option>
+                        <option value="mixed">Mixed</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Profit Allocation</label>
+                      <input
+                        type="text"
+                        name="profit_allocation"
+                        value={form.profit_allocation}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200"
+                        placeholder="e.g., 50-50, 60-40, etc."
+                      />
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            {/* Buyers Section */}
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
-                  Buyers
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => addArrayItem('buyers', buyerTemplate)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                >
-                  Add Buyer
-                </button>
               </div>
-              
-              {form.buyers.map((buyer, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4 space-y-4">
+
+              {/* Owners Section */}
+              <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+                <div className="px-6 py-5 border-b border-slate-200 bg-slate-50">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-gray-900">Buyer {index + 1}</h3>
-                    {form.buyers.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeArrayItem(index, 'buyers')}
-                        className="text-red-500 hover:text-red-700 text-sm"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <input
-                      type="text"
-                      value={buyer.name}
-                      onChange={(e) => handleArrayChange(index, 'name', e.target.value, 'buyers')}
-                      placeholder="Full Name"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="tel"
-                      value={buyer.mobile}
-                      onChange={(e) => handleArrayChange(index, 'mobile', e.target.value, 'buyers')}
-                      placeholder="Mobile Number"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="email"
-                      value={buyer.email}
-                      onChange={(e) => handleArrayChange(index, 'email', e.target.value, 'buyers')}
-                      placeholder="Email"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="text"
-                      value={buyer.aadhar_card}
-                      onChange={(e) => handleArrayChange(index, 'aadhar_card', e.target.value, 'buyers')}
-                      placeholder="Aadhar Card"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="text"
-                      value={buyer.pan_card}
-                      onChange={(e) => handleArrayChange(index, 'pan_card', e.target.value, 'buyers')}
-                      placeholder="PAN Card"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center mr-4">
+                        <span className="text-white font-bold">2</span>
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-semibold text-slate-900">Property Owners</h2>
+                        <p className="text-sm text-slate-600 mt-1">Add all property owners with their details</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addArrayItem('owners', ownerTemplate)}
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-semibold"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Add Owner
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            {/* Investors Section */}
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
-                  Investors
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => addArrayItem('investors', investorTemplate)}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
-                >
-                  Add Investor
-                </button>
+                
+                <div className="p-6 space-y-6">
+                  {form.owners.map((owner, index) => (
+                    <div key={index} className="border border-slate-200 rounded-lg p-6 space-y-4 bg-slate-50">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-slate-900">Owner {index + 1}</h3>
+                        {form.owners.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeArrayItem(index, 'owners')}
+                            className="text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-1 rounded-md transition-all duration-200 font-medium"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <input
+                          type="text"
+                          value={owner.name}
+                          onChange={(e) => handleArrayChange(index, 'name', e.target.value, 'owners')}
+                          placeholder="Full Name"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="tel"
+                          value={owner.mobile}
+                          onChange={(e) => handleArrayChange(index, 'mobile', e.target.value, 'owners')}
+                          placeholder="Mobile Number"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="email"
+                          value={owner.email}
+                          onChange={(e) => handleArrayChange(index, 'email', e.target.value, 'owners')}
+                          placeholder="Email Address"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="text"
+                          value={owner.aadhar_card}
+                          onChange={(e) => handleArrayChange(index, 'aadhar_card', e.target.value, 'owners')}
+                          placeholder="Aadhar Card Number"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="text"
+                          value={owner.pan_card}
+                          onChange={(e) => handleArrayChange(index, 'pan_card', e.target.value, 'owners')}
+                          placeholder="PAN Card Number"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200 uppercase"
+                        />
+                        <input
+                          type="text"
+                          value={owner.address}
+                          onChange={(e) => handleArrayChange(index, 'address', e.target.value, 'owners')}
+                          placeholder="Complete Address"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              
-              {form.investors.map((investor, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4 space-y-4">
+
+              {/* Buyers Section */}
+              <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+                <div className="px-6 py-5 border-b border-slate-200 bg-emerald-50">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-gray-900">Investor {index + 1}</h3>
-                    {form.investors.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeArrayItem(index, 'investors')}
-                        className="text-red-500 hover:text-red-700 text-sm"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <input
-                      type="text"
-                      value={investor.investor_name}
-                      onChange={(e) => handleArrayChange(index, 'investor_name', e.target.value, 'investors')}
-                      placeholder="Investor Name"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={investor.investment_amount}
-                      onChange={(e) => handleArrayChange(index, 'investment_amount', e.target.value, 'investors')}
-                      placeholder="Investment Amount"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={investor.investment_percentage}
-                      onChange={(e) => handleArrayChange(index, 'investment_percentage', e.target.value, 'investors')}
-                      placeholder="Investment %"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="tel"
-                      value={investor.mobile}
-                      onChange={(e) => handleArrayChange(index, 'mobile', e.target.value, 'investors')}
-                      placeholder="Mobile Number"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="email"
-                      value={investor.email}
-                      onChange={(e) => handleArrayChange(index, 'email', e.target.value, 'investors')}
-                      placeholder="Email"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="text"
-                      value={investor.aadhar_card}
-                      onChange={(e) => handleArrayChange(index, 'aadhar_card', e.target.value, 'investors')}
-                      placeholder="Aadhar Card"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="text"
-                      value={investor.pan_card}
-                      onChange={(e) => handleArrayChange(index, 'pan_card', e.target.value, 'investors')}
-                      placeholder="PAN Card"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center mr-4">
+                        <span className="text-white font-bold">3</span>
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-semibold text-slate-900">Property Buyers</h2>
+                        <p className="text-sm text-slate-600 mt-1">Add potential or confirmed buyers</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addArrayItem('buyers', buyerTemplate)}
+                      className="inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all duration-200 font-semibold"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Add Buyer
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            {/* Expenses Section */}
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
-                  Expenses
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => addArrayItem('expenses', expenseTemplate)}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm"
-                >
-                  Add Expense
-                </button>
+                
+                <div className="p-6 space-y-6">
+                  {form.buyers.map((buyer, index) => (
+                    <div key={index} className="border border-slate-200 rounded-lg p-6 space-y-4 bg-emerald-50">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-slate-900">Buyer {index + 1}</h3>
+                        {form.buyers.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeArrayItem(index, 'buyers')}
+                            className="text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-1 rounded-md transition-all duration-200 font-medium"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <input
+                          type="text"
+                          value={buyer.name}
+                          onChange={(e) => handleArrayChange(index, 'name', e.target.value, 'buyers')}
+                          placeholder="Full Name"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="tel"
+                          value={buyer.mobile}
+                          onChange={(e) => handleArrayChange(index, 'mobile', e.target.value, 'buyers')}
+                          placeholder="Mobile Number"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="email"
+                          value={buyer.email}
+                          onChange={(e) => handleArrayChange(index, 'email', e.target.value, 'buyers')}
+                          placeholder="Email Address"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="text"
+                          value={buyer.aadhar_card}
+                          onChange={(e) => handleArrayChange(index, 'aadhar_card', e.target.value, 'buyers')}
+                          placeholder="Aadhar Card Number"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="text"
+                          value={buyer.pan_card}
+                          onChange={(e) => handleArrayChange(index, 'pan_card', e.target.value, 'buyers')}
+                          placeholder="PAN Card Number"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200 uppercase"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              
-              {form.expenses.map((expense, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4 space-y-4">
+
+              {/* Investors Section */}
+              <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+                <div className="px-6 py-5 border-b border-slate-200 bg-blue-50">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-gray-900">Expense {index + 1}</h3>
-                    {form.expenses.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeArrayItem(index, 'expenses')}
-                        className="text-red-500 hover:text-red-700 text-sm"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <input
-                      type="text"
-                      value={expense.expense_type}
-                      onChange={(e) => handleArrayChange(index, 'expense_type', e.target.value, 'expenses')}
-                      placeholder="Expense Type"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="text"
-                      value={expense.expense_description}
-                      onChange={(e) => handleArrayChange(index, 'expense_description', e.target.value, 'expenses')}
-                      placeholder="Description"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={expense.amount}
-                      onChange={(e) => handleArrayChange(index, 'amount', e.target.value, 'expenses')}
-                      placeholder="Amount"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="text"
-                      value={expense.paid_by}
-                      onChange={(e) => handleArrayChange(index, 'paid_by', e.target.value, 'expenses')}
-                      placeholder="Paid By"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="date"
-                      value={expense.expense_date}
-                      onChange={(e) => handleArrayChange(index, 'expense_date', e.target.value, 'expenses')}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="text"
-                      value={expense.receipt_number}
-                      onChange={(e) => handleArrayChange(index, 'receipt_number', e.target.value, 'expenses')}
-                      placeholder="Receipt Number"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center mr-4">
+                        <span className="text-white font-bold">4</span>
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-semibold text-slate-900">Deal Investors</h2>
+                        <p className="text-sm text-slate-600 mt-1">Add investors with their investment details</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addArrayItem('investors', investorTemplate)}
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 font-semibold"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Add Investor
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
+                
+                <div className="p-6 space-y-6">
+                  {form.investors.map((investor, index) => (
+                    <div key={index} className="border border-slate-200 rounded-lg p-6 space-y-4 bg-blue-50">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-slate-900">Investor {index + 1}</h3>
+                        {form.investors.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeArrayItem(index, 'investors')}
+                            className="text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-1 rounded-md transition-all duration-200 font-medium"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <input
+                          type="text"
+                          value={investor.investor_name}
+                          onChange={(e) => handleArrayChange(index, 'investor_name', e.target.value, 'investors')}
+                          placeholder="Investor Name"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={investor.investment_amount}
+                          onChange={(e) => handleArrayChange(index, 'investment_amount', e.target.value, 'investors')}
+                          placeholder="Investment Amount (₹)"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={investor.investment_percentage}
+                          onChange={(e) => handleArrayChange(index, 'investment_percentage', e.target.value, 'investors')}
+                          placeholder="Investment Percentage (%)"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="tel"
+                          value={investor.mobile}
+                          onChange={(e) => handleArrayChange(index, 'mobile', e.target.value, 'investors')}
+                          placeholder="Mobile Number"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="email"
+                          value={investor.email}
+                          onChange={(e) => handleArrayChange(index, 'email', e.target.value, 'investors')}
+                          placeholder="Email Address"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="text"
+                          value={investor.aadhar_card}
+                          onChange={(e) => handleArrayChange(index, 'aadhar_card', e.target.value, 'investors')}
+                          placeholder="Aadhar Card Number"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="text"
+                          value={investor.pan_card}
+                          onChange={(e) => handleArrayChange(index, 'pan_card', e.target.value, 'investors')}
+                          placeholder="PAN Card Number"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200 uppercase"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-            {/* Submit Button */}
-            <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={() => router.push(`/deals/${id}`)}
-                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors duration-200 flex items-center"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Updating...
-                  </>
-                ) : (
-                  'Update Deal'
-                )}
-              </button>
-            </div>
-          </form>
+              {/* Expenses Section */}
+              <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+                <div className="px-6 py-5 border-b border-slate-200 bg-orange-50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center mr-4">
+                        <span className="text-white font-bold">5</span>
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-semibold text-slate-900">Deal Expenses</h2>
+                        <p className="text-sm text-slate-600 mt-1">Track all expenses related to this deal</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addArrayItem('expenses', expenseTemplate)}
+                      className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all duration-200 font-semibold"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Add Expense
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="p-6 space-y-6">
+                  {form.expenses.map((expense, index) => (
+                    <div key={index} className="border border-slate-200 rounded-lg p-6 space-y-4 bg-orange-50">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-slate-900">Expense {index + 1}</h3>
+                        {form.expenses.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeArrayItem(index, 'expenses')}
+                            className="text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-1 rounded-md transition-all duration-200 font-medium"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <input
+                          type="text"
+                          value={expense.expense_type}
+                          onChange={(e) => handleArrayChange(index, 'expense_type', e.target.value, 'expenses')}
+                          placeholder="Expense Type (e.g., Legal, Survey)"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="text"
+                          value={expense.expense_description}
+                          onChange={(e) => handleArrayChange(index, 'expense_description', e.target.value, 'expenses')}
+                          placeholder="Description"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={expense.amount}
+                          onChange={(e) => handleArrayChange(index, 'amount', e.target.value, 'expenses')}
+                          placeholder="Amount (₹)"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="text"
+                          value={expense.paid_by}
+                          onChange={(e) => handleArrayChange(index, 'paid_by', e.target.value, 'expenses')}
+                          placeholder="Paid By"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="date"
+                          value={expense.expense_date}
+                          onChange={(e) => handleArrayChange(index, 'expense_date', e.target.value, 'expenses')}
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                        <input
+                          type="text"
+                          value={expense.receipt_number}
+                          onChange={(e) => handleArrayChange(index, 'receipt_number', e.target.value, 'expenses')}
+                          placeholder="Receipt Number"
+                          className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+                <div className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4 text-sm text-slate-600">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>All changes will be saved securely</span>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <Link href={`/deals/${id}`}>
+                        <span className="inline-flex items-center px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-all duration-200 font-semibold cursor-pointer">
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                          Cancel
+                        </span>
+                      </Link>
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="inline-flex items-center px-8 py-3 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white rounded-lg font-semibold transition-all duration-200 shadow-sm text-lg"
+                      >
+                        {loading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-3"></div>
+                            Updating Deal...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                            </svg>
+                            Update Deal
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
     </div>

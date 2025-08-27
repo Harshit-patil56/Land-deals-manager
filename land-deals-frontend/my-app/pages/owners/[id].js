@@ -34,14 +34,9 @@ export default function OwnerDetail() {
   const fetchOwnerDetails = async () => {
     try {
       setLoading(true);
-      console.log('Fetching owner details for ID:', id);
       const response = await api.get(`/owners/${id}`);
-      console.log('Owner details response:', response.data);
       setOwner(response.data.owner);
       setProjects(response.data.projects);
-      console.log('Projects data:', response.data.projects);
-      console.log('Documents data:', response.data.documents);
-      console.log('Documents array length:', response.data.documents?.length || 0);
       
       // Ensure documents is an array
       const documentsArray = Array.isArray(response.data.documents) 
@@ -587,31 +582,6 @@ export default function OwnerDetail() {
           </div>
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200">
-        <div className="px-6 py-4">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center space-x-6 text-sm text-slate-600">
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Owner ID:</span>
-                <span className="ml-2 font-semibold text-slate-900">#{owner.id}</span>
-              </div>
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Properties:</span>
-                <span className="ml-2 font-semibold text-emerald-600">{projects.length}</span>
-              </div>
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Total Investment:</span>
-                <span className="ml-2 font-semibold text-blue-600">₹{totalInvestment.toLocaleString('en-IN')}</span>
-              </div>
-            </div>
-            <div className="mt-2 lg:mt-0 text-sm text-slate-500">
-              Property Management System © 2025
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

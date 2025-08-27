@@ -67,7 +67,7 @@ export default function DealsPage() {
       </div>
 
       {/* Page Header */}
-      <div className="bg-white border-b border-slate-200">
+      <div className="">
         <div className="px-6 py-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -362,49 +362,6 @@ export default function DealsPage() {
           </div>
         )}
       </div>
-
-      {/* Enhanced Footer Stats */}
-      <footer className="bg-white border-t border-slate-200">
-        <div className="px-6 py-4">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Active Deals:</span>
-                <span className="ml-2 inline-flex items-center px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
-                  {deals.filter(d => d.status === 'open').length}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Closed Deals:</span>
-                <span className="ml-2 inline-flex items-center px-2 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium">
-                  {deals.filter(d => d.status === 'closed').length}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Total Investment:</span>
-                <span className="ml-2 font-semibold text-slate-900">
-                  ₹{deals.reduce((sum, deal) => sum + (deal.purchase_amount || 0), 0).toLocaleString('en-IN')}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Total Revenue:</span>
-                <span className="ml-2 font-semibold text-emerald-600">
-                  ₹{deals.reduce((sum, deal) => sum + (deal.selling_amount || 0), 0).toLocaleString('en-IN')}
-                </span>
-              </div>
-            </div>
-            <div className="mt-4 lg:mt-0 text-sm text-slate-500">
-              Last updated: {new Date().toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }

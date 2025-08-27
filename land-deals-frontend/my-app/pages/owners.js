@@ -93,7 +93,7 @@ export default function Owners() {
       </div>
 
       {/* Page Header */}
-      <div className="bg-white border-b border-slate-200">
+      <div className="">
         <div className="px-6 py-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -373,29 +373,6 @@ export default function Owners() {
           )}
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200">
-        <div className="px-6 py-4">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center space-x-6 text-sm text-slate-600">
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Total Owners:</span>
-                <span className="ml-2 font-semibold text-slate-900">{owners.length}</span>
-              </div>
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Portfolio Value:</span>
-                <span className="ml-2 font-semibold text-emerald-600">
-                  ₹{owners.reduce((sum, owner) => sum + (owner.total_investment || 0), 0).toLocaleString('en-IN')}
-                </span>
-              </div>
-            </div>
-            <div className="mt-2 lg:mt-0 text-sm text-slate-500">
-              Property Management System © 2025
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
