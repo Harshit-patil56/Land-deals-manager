@@ -32,12 +32,24 @@ export default function Navbar({ user, onLogout }) {
             <Link href="/deals/deals" className="text-slate-700 hover:text-slate-900 font-medium transition-colors duration-200">
               All Deals
             </Link>
-            <Link href="/reports" className="text-slate-700 hover:text-slate-900 font-medium transition-colors duration-200">
-              Reports
+            <Link href="/owners" className="text-slate-700 hover:text-slate-900 font-medium transition-colors duration-200">
+              Owners
+            </Link>
+            <Link href="/investors" className="text-slate-700 hover:text-slate-900 font-medium transition-colors duration-200">
+              Investors
             </Link>
             <Link href="/analytics" className="text-slate-700 hover:text-slate-900 font-medium transition-colors duration-200">
               Analytics
             </Link>
+            {user?.role === 'admin' && (
+              <Link href="/admin/users" className="text-red-700 hover:text-red-900 font-medium transition-colors duration-200 flex items-center space-x-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>Admin</span>
+              </Link>
+            )}
           </div>
 
           {/* Right: User info and logout (Desktop) */}
@@ -148,14 +160,25 @@ export default function Navbar({ user, onLogout }) {
               </Link>
               
               <Link 
-                href="/reports" 
+                href="/owners" 
                 className="flex items-center px-4 py-3 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all duration-200 font-medium"
                 onClick={() => setMenuOpen(false)}
               >
                 <svg className="w-5 h-5 mr-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                 </svg>
-                Reports
+                Owners
+              </Link>
+              
+              <Link 
+                href="/investors" 
+                className="flex items-center px-4 py-3 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all duration-200 font-medium"
+                onClick={() => setMenuOpen(false)}
+              >
+                <svg className="w-5 h-5 mr-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Investors
               </Link>
               
               <Link 
@@ -168,6 +191,20 @@ export default function Navbar({ user, onLogout }) {
                 </svg>
                 Analytics
               </Link>
+              
+              {user?.role === 'admin' && (
+                <Link 
+                  href="/admin/users" 
+                  className="flex items-center px-4 py-3 text-red-700 hover:text-red-900 hover:bg-red-50 rounded-lg transition-all duration-200 font-medium"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <svg className="w-5 h-5 mr-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Admin Panel
+                </Link>
+              )}
               
               <Link 
                 href="/profile" 

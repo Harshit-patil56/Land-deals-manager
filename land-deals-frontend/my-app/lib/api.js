@@ -20,11 +20,28 @@ export const dealAPI = {
   getAll: () => api.get('/deals'),
   getById: (id) => api.get(`/deals/${id}`),
   create: (data) => api.post('/deals', data),
+  update: (id, data) => api.put(`/deals/${id}`, data),
   addExpense: (dealId, data) => api.post(`/deals/${dealId}/expenses`, data),
   uploadDocument: (formData) => api.post('/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   delete: (id) => api.delete(`/deals/${id}`)
+}
+
+export const investorsAPI = {
+  getAll: () => api.get('/investors'),
+  getById: (id) => api.get(`/investors/${id}`),
+  create: (data) => api.post('/investors', data),
+  update: (id, data) => api.put(`/investors/${id}`, data),
+  delete: (id) => api.delete(`/investors/${id}`)
+}
+
+export const ownersAPI = {
+  getAll: () => api.get('/owners'),
+  getById: (id) => api.get(`/owners/${id}`),
+  create: (data) => api.post('/owners', data),
+  update: (id, data) => api.put(`/owners/${id}`, data),
+  delete: (id) => api.delete(`/owners/${id}`)
 }
 
 export const paymentsAPI = {

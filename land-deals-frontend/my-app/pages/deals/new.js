@@ -1,10 +1,13 @@
 // --- All imports remain untouched ---
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { dealAPI } from '../../lib/api';
-import { getUser } from '../../lib/auth';
+import { dealAPI, investorsAPI, ownersAPI } from '../../lib/api';
+import api from '../../lib/api';
+import { getUser, getToken } from '../../lib/auth';
 import toast from 'react-hot-toast';
 import * as locationAPI from '../../lib/locationAPI';
+import { Plus, X } from 'lucide-react';
+import Navbar from '../../components/layout/Navbar';
 
 export default function NewDeal() {
   // --- Logic & state unchanged ---
@@ -14,7 +17,6 @@ export default function NewDeal() {
   const [form, setForm] = useState({
     project_name: '',
     survey_number: '',
-    location: '',
     state: '',
     district: '',
     taluka: '',
@@ -26,19 +28,15 @@ export default function NewDeal() {
     selling_amount: '',
     status: 'open',
     owners: [{ name: '', mobile: '', email: '', aadhar_card: '', pan_card: '' }],
-    investors: [{ investor_name: '', investment_amount: '', investment_percentage: '', mobile: '', email: '', aadhar_card: '', pan_card: '' }],
+    investors: [{ investor_name: '', investment_amount: '', investment_percentage: '', mobile: '', email: '', aadhar_card: '', pan_card: '', address: '' }],
     expenses: [{ expense_type: '', expense_description: '', amount: '', paid_by: '', expense_date: '', receipt_number: '' }],
-    payment_mode: '',
-    mutation_done: false,
     buyers: [{ name: '', mobile: '', email: '', aadhar_card: '', pan_card: '' }],
-    profit_allocation: '',
     documents: [],
   });
   const [files, setFiles] = useState([]);
   const [landDocuments, setLandDocuments] = useState({
     extract: [],
     property_card: [],
-    mutation_records: [],
     survey_map: [],
     demarcation_certificate: [],
     development_plan: [],
@@ -48,9 +46,15 @@ export default function NewDeal() {
     ]
   });
   const [ownerDocuments, setOwnerDocuments] = useState({});
+  const [existingOwnerDocuments, setExistingOwnerDocuments] = useState({});
+  const [missingDocuments, setMissingDocuments] = useState({});
   
-  // Initialize owner documents when owners array changes.
-  // Use functional update and depend only on form.owners to avoid update loops.
+  // Investor documents state
+  const [investorDocuments, setInvestorDocuments] = useState({});
+  const [existingInvestorDocuments, setExistingInvestorDocuments] = useState({});
+  const [investorMissingDocuments, setInvestorMissingDocuments] = useState({});
+  
+  // Initialize owner documents when owners array changes
   useEffect(() => {
     setOwnerDocuments(prev => {
       const next = {}
@@ -74,6 +78,39 @@ export default function NewDeal() {
       return same ? prev : next
     })
   }, [form.owners])
+  
+  // Initialize investor documents when investors array changes
+  useEffect(() => {
+    const newInvestorDocuments = {};
+    form.investors.forEach((_, index) => {
+      if (!investorDocuments[index]) {
+        newInvestorDocuments[index] = {
+          identity_proof: [], // Aadhaar, PAN, Passport/Voter ID
+          photograph: [],
+          bank_details: [], // Bank Account Details (cheque/passbook copy)
+          investment_agreement: [], // Capital Commitment Agreement
+          financial_proof: [], // Actual Contribution Records
+          partnership_agreement: [], // Partnership/Joint Venture Agreement
+          loan_agreement: [], // Loan Agreement (if investor money is borrowed)
+          power_of_attorney: [] // Power of Attorney (optional)
+        };
+      } else {
+        newInvestorDocuments[index] = investorDocuments[index];
+      }
+    });
+    setInvestorDocuments(newInvestorDocuments);
+  }, [form.investors.length]);
+  
+  // Existing owners functionality
+  const [existingOwners, setExistingOwners] = useState([]);
+  const [ownerSelectionTypes, setOwnerSelectionTypes] = useState({}); // Track selection type for each owner index
+  const [selectedExistingOwners, setSelectedExistingOwners] = useState({}); // Track selected existing owners
+  
+  // Existing investors functionality
+  const [existingInvestors, setExistingInvestors] = useState([]);
+  const [investorSelectionTypes, setInvestorSelectionTypes] = useState({}); // Track selection type for each investor index
+  const [selectedExistingInvestors, setSelectedExistingInvestors] = useState({}); // Track selected existing investors
+  
   const [loading, setLoading] = useState(false);
   
   // Location data states
@@ -96,7 +133,148 @@ export default function NewDeal() {
     
     // Load states on component mount
     loadStates();
+    
+    // Load existing owners
+    fetchExistingOwners();
+    
+    // Load existing investors
+    fetchExistingInvestors();
   }, []);
+
+  // Fetch existing owners
+  const fetchExistingOwners = async () => {
+    try {
+      // Create a simple API call to get owners using proper API method
+      const response = await ownersAPI.getAll();
+      setExistingOwners(response.data);
+    } catch (error) {
+      console.error('Failed to fetch existing owners:', error);
+      console.error('Error message:', error.message);
+    }
+  };
+
+  const fetchOwnerDocuments = async (ownerId) => {
+    try {
+      const response = await api.get(`/owners/${ownerId}/documents`);
+      return response.data.documents;
+    } catch (error) {
+      console.error('Failed to fetch owner documents:', error);
+      return {};
+    }
+  };
+
+  // Fetch existing investors
+  const fetchExistingInvestors = async () => {
+    try {
+      // For now, investors are deal-specific, so we'll start with empty array
+      // In the future, this could be implemented as a separate API endpoint
+      setExistingInvestors([]);
+    } catch (error) {
+      console.error('Failed to fetch existing investors:', error);
+    }
+  };
+
+  const fetchInvestorDocuments = async (investorId) => {
+    try {
+      const response = await api.get(`/investors/${investorId}/documents`);
+      return response.data.documents;
+    } catch (error) {
+      console.error('Failed to fetch investor documents:', error);
+      return {};
+    }
+  };
+
+  const checkMissingDocuments = (existingDocs) => {
+    const requiredDocTypes = [
+      'identity_proof', 'address_proof', 'photograph', 'bank_details',
+      'power_of_attorney', 'past_sale_deeds', 'noc_co_owners', 
+      'noc_society', 'affidavit_no_dispute'
+    ];
+    
+    // Map old document types to new ones for compatibility
+    const docMapping = {
+      'id_proof': 'identity_proof',
+      'photo': 'photograph'
+    };
+    
+    // Normalize existing docs to handle old naming
+    const normalizedDocs = {};
+    Object.entries(existingDocs).forEach(([docType, docs]) => {
+      const normalizedType = docMapping[docType] || docType;
+      if (!normalizedDocs[normalizedType]) {
+        normalizedDocs[normalizedType] = [];
+      }
+      normalizedDocs[normalizedType] = normalizedDocs[normalizedType].concat(docs);
+    });
+    
+    const missing = {};
+    requiredDocTypes.forEach(docType => {
+      if (!normalizedDocs[docType] || normalizedDocs[docType].length === 0) {
+        missing[docType] = true;
+      }
+    });
+    
+    return missing;
+  };
+
+  const getDocumentDescription = (docType) => {
+    const descriptions = {
+      identity_proof: "Aadhaar, PAN, Passport, Voter ID",
+      address_proof: "Electricity Bill, Ration Card, etc.",
+      photograph: "Scanned photo for record",
+      bank_details: "Cancelled cheque or passbook copy",
+      power_of_attorney: "If someone else is signing on behalf",
+      past_sale_deeds: "Previous ownership records",
+      noc_co_owners: "Family members NOC (joint family property)",
+      noc_society: "If applicable",
+      affidavit_no_dispute: "Declaration of no legal dispute"
+    };
+    return descriptions[docType] || "";
+  };
+
+  const getDocumentDisplayName = (docType) => {
+    const displayNames = {
+      identity_proof: "Identity Proof",
+      address_proof: "Address Proof", 
+      photograph: "Photograph",
+      bank_details: "Bank Details",
+      power_of_attorney: "Power of Attorney",
+      past_sale_deeds: "Past Sale Deeds",
+      noc_co_owners: "NOC from Co-owners",
+      noc_society: "NOC from Society/Gram Panchayat",
+      affidavit_no_dispute: "Affidavit - No Legal Dispute"
+    };
+    return displayNames[docType] || docType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  // Investor document helper functions
+  const getInvestorDocumentDescription = (docType) => {
+    const descriptions = {
+      identity_proof: "Aadhaar, PAN, Passport/Voter ID",
+      photograph: "Scanned photo for record",
+      bank_details: "Cheque/passbook copy",
+      investment_agreement: "How much %/₹ invested",
+      financial_proof: "Transaction proof",
+      partnership_agreement: "Signed by all investors",
+      loan_agreement: "If investor money is borrowed",
+      power_of_attorney: "Optional, if investor authorizes manager"
+    };
+    return descriptions[docType] || "";
+  };
+
+  const getInvestorDocumentDisplayName = (docType) => {
+    const displayNames = {
+      identity_proof: "Investor KYC",
+      photograph: "Photograph",
+      bank_details: "Bank Account Details",
+      investment_agreement: "Capital Commitment Agreement",
+      financial_proof: "Actual Contribution Records",
+      partnership_agreement: "Partnership/Joint Venture Agreement",
+      loan_agreement: "Loan Agreement",
+      power_of_attorney: "Power of Attorney"
+    };
+    return displayNames[docType] || docType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
 
   // Location loading functions
   const loadStates = async () => {
@@ -137,16 +315,30 @@ export default function NewDeal() {
 
   if (!authChecked) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-2xl">Loading...</p>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-lg shadow-sm border border-slate-200 mb-6">
+            <div className="w-8 h-8 border-3 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading...</h3>
+          <p className="text-slate-600">Please wait while we initialize the form</p>
+        </div>
       </div>
     );
   }
   
   if (!user || (user.role !== 'auditor' && user.role !== 'admin')) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-2xl font-medium">Only admin or auditor can create new deals.</p>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-lg shadow-sm border border-slate-200 mb-6">
+            <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">Access Restricted</h3>
+          <p className="text-slate-600">Only admin or auditor can create new deals.</p>
+        </div>
       </div>
     );
   }
@@ -234,6 +426,285 @@ export default function NewDeal() {
   
   const addArrayItem = (arr, obj) => setForm({ ...form, [arr]: [...form[arr], obj] });
   const removeArrayItem = (arr, idx) => setForm({ ...form, [arr]: form[arr].filter((_, i) => i !== idx) });
+  
+  // Owner selection functions
+  const handleOwnerTypeChange = (ownerIndex, type) => {
+    setOwnerSelectionTypes(prev => ({
+      ...prev,
+      [ownerIndex]: type
+    }));
+    
+    if (type === 'new') {
+      // Reset to empty form for new owner
+      const updatedOwners = [...form.owners];
+      updatedOwners[ownerIndex] = { name: '', mobile: '', email: '', aadhar_card: '', pan_card: '' };
+      setForm({ ...form, owners: updatedOwners });
+      
+      // Clear existing owner selection
+      setSelectedExistingOwners(prev => {
+        const updated = { ...prev };
+        delete updated[ownerIndex];
+        return updated;
+      });
+    }
+  };
+  
+  const handleExistingOwnerSelect = async (ownerIndex, existingOwnerId) => {
+    setSelectedExistingOwners(prev => ({
+      ...prev,
+      [ownerIndex]: existingOwnerId
+    }));
+    
+    if (existingOwnerId) {
+      const existingOwner = existingOwners.find(owner => owner.id === parseInt(existingOwnerId));
+      
+      if (existingOwner) {
+        const updatedOwners = [...form.owners];
+        updatedOwners[ownerIndex] = {
+          name: existingOwner.name,
+          mobile: existingOwner.mobile || '',
+          email: existingOwner.email || '',
+          aadhar_card: existingOwner.aadhar_card || '',
+          pan_card: existingOwner.pan_card || '',
+          existing_owner_id: existingOwner.id
+        };
+        setForm({ ...form, owners: updatedOwners });
+        
+        // Fetch existing documents for this owner
+        const ownerDocs = await fetchOwnerDocuments(existingOwner.id);
+        
+        // Normalize document types for compatibility
+        const normalizedDocs = {};
+        Object.entries(ownerDocs).forEach(([docType, docs]) => {
+          let normalizedType = docType;
+          // Map old document types to new ones
+          if (docType === 'id_proof') normalizedType = 'identity_proof';
+          if (docType === 'photo') normalizedType = 'photograph';
+          
+          normalizedDocs[normalizedType] = docs;
+        });
+        
+        setExistingOwnerDocuments(prev => ({
+          ...prev,
+          [ownerIndex]: normalizedDocs
+        }));
+        
+        // Check which documents are missing
+        const missing = checkMissingDocuments(normalizedDocs);
+        setMissingDocuments(prev => ({
+          ...prev,
+          [ownerIndex]: missing
+        }));
+      }
+    } else {
+      // Clear documents when no owner is selected
+      setExistingOwnerDocuments(prev => {
+        const updated = { ...prev };
+        delete updated[ownerIndex];
+        return updated;
+      });
+      setMissingDocuments(prev => {
+        const updated = { ...prev };
+        delete updated[ownerIndex];
+        return updated;
+      });
+    }
+  };
+  
+  const addOwnerWithType = () => {
+    const newOwnerIndex = form.owners.length;
+    addArrayItem('owners', { name: '', mobile: '', email: '', aadhar_card: '', pan_card: '' });
+    
+    // Set default to new owner type
+    setOwnerSelectionTypes(prev => ({
+      ...prev,
+      [newOwnerIndex]: 'new'
+    }));
+  };
+  
+  const removeOwnerWithType = (index) => {
+    removeArrayItem('owners', index);
+    
+    // Clean up related state
+    setOwnerSelectionTypes(prev => {
+      const updated = { ...prev };
+      delete updated[index];
+      // Reindex remaining items
+      const reindexed = {};
+      Object.keys(updated).forEach(key => {
+        const keyIndex = parseInt(key);
+        if (keyIndex > index) {
+          reindexed[keyIndex - 1] = updated[key];
+        } else {
+          reindexed[key] = updated[key];
+        }
+      });
+      return reindexed;
+    });
+    
+    setSelectedExistingOwners(prev => {
+      const updated = { ...prev };
+      delete updated[index];
+      // Reindex remaining items
+      const reindexed = {};
+      Object.keys(updated).forEach(key => {
+        const keyIndex = parseInt(key);
+        if (keyIndex > index) {
+          reindexed[keyIndex - 1] = updated[key];
+        } else {
+          reindexed[key] = updated[key];
+        }
+      });
+      return reindexed;
+    });
+  };
+  
+  const handleInvestorTypeChange = (idx, type) => {
+    setInvestorSelectionTypes(prev => ({
+      ...prev,
+      [idx]: type
+    }));
+    
+    // Clear existing investor selection when switching to new
+    if (type === 'new') {
+      setSelectedExistingInvestors(prev => {
+        const updated = { ...prev };
+        delete updated[idx];
+        return updated;
+      });
+      
+      // Reset investor form to empty
+      const updatedInvestors = [...form.investors];
+      updatedInvestors[idx] = {
+        investor_name: '',
+        investment_amount: '',
+        investment_percentage: '',
+        mobile: '',
+        email: '',
+        aadhar_card: '',
+        pan_card: '',
+        address: ''
+      };
+      setForm({ ...form, investors: updatedInvestors });
+    }
+  };
+  
+  const addInvestorWithType = () => {
+    const newInvestorIndex = form.investors.length;
+    addArrayItem('investors', { investor_name: '', investment_amount: '', investment_percentage: '', mobile: '', email: '', aadhar_card: '', pan_card: '', address: '' });
+    
+    // Set default to new investor type
+    setInvestorSelectionTypes(prev => ({
+      ...prev,
+      [newInvestorIndex]: 'new'
+    }));
+  };
+  
+  const removeInvestorWithType = (index) => {
+    removeArrayItem('investors', index);
+    
+    // Clean up related state
+    setInvestorSelectionTypes(prev => {
+      const updated = { ...prev };
+      delete updated[index];
+      // Reindex remaining items
+      const reindexed = {};
+      Object.keys(updated).forEach(key => {
+        const keyIndex = parseInt(key);
+        if (keyIndex > index) {
+          reindexed[keyIndex - 1] = updated[key];
+        } else {
+          reindexed[key] = updated[key];
+        }
+      });
+      return reindexed;
+    });
+    
+    setSelectedExistingInvestors(prev => {
+      const updated = { ...prev };
+      delete updated[index];
+      // Reindex remaining items
+      const reindexed = {};
+      Object.keys(updated).forEach(key => {
+        const keyIndex = parseInt(key);
+        if (keyIndex > index) {
+          reindexed[keyIndex - 1] = updated[key];
+        } else {
+          reindexed[key] = updated[key];
+        }
+      });
+      return reindexed;
+    });
+  };
+  
+  const handleExistingInvestorSelect = async (investorIndex, existingInvestorId) => {
+    setSelectedExistingInvestors(prev => ({
+      ...prev,
+      [investorIndex]: existingInvestorId
+    }));
+    
+    if (existingInvestorId) {
+      const existingInvestor = existingInvestors.find(investor => investor.id === parseInt(existingInvestorId));
+      
+      if (existingInvestor) {
+        const updatedInvestors = [...form.investors];
+        updatedInvestors[investorIndex] = {
+          investor_name: existingInvestor.investor_name,
+          investment_amount: existingInvestor.investment_amount || '',
+          investment_percentage: existingInvestor.investment_percentage || '',
+          mobile: existingInvestor.mobile || '',
+          email: existingInvestor.email || '',
+          aadhar_card: existingInvestor.aadhar_card || '',
+          pan_card: existingInvestor.pan_card || '',
+          address: existingInvestor.address || '',
+          existing_investor_id: existingInvestor.id
+        };
+        setForm({ ...form, investors: updatedInvestors });
+        
+        // Fetch existing documents for this investor
+        const investorDocs = await fetchInvestorDocuments(existingInvestor.id);
+        
+        setExistingInvestorDocuments(prev => ({
+          ...prev,
+          [investorIndex]: investorDocs
+        }));
+        
+        // Check which documents are missing for investors
+        const missing = checkMissingInvestorDocuments(investorDocs);
+        setInvestorMissingDocuments(prev => ({
+          ...prev,
+          [investorIndex]: missing
+        }));
+      }
+    } else {
+      // Clear documents when no investor is selected
+      setExistingInvestorDocuments(prev => {
+        const updated = { ...prev };
+        delete updated[investorIndex];
+        return updated;
+      });
+      setInvestorMissingDocuments(prev => {
+        const updated = { ...prev };
+        delete updated[investorIndex];
+        return updated;
+      });
+    }
+  };
+
+  const checkMissingInvestorDocuments = (existingDocs) => {
+    const requiredDocTypes = [
+      'identity_proof', 'photograph', 'bank_details', 'investment_agreement',
+      'financial_proof', 'partnership_agreement', 'loan_agreement', 'power_of_attorney'
+    ];
+    
+    const missing = {};
+    requiredDocTypes.forEach(docType => {
+      missing[docType] = !existingDocs[docType] || existingDocs[docType].length === 0;
+    });
+    
+    return missing;
+  };
+  
   const handleFileChange = (e) => setFiles(Array.from(e.target.files));
 
   const handleLandDocumentChange = (docType, e) => {
@@ -328,6 +799,28 @@ export default function NewDeal() {
     }));
   };
 
+  // Handlers for Investor Documents
+  const handleInvestorDocumentChange = (investorIndex, docType, e) => {
+    const files = Array.from(e.target.files);
+    setInvestorDocuments(prev => ({
+      ...prev,
+      [investorIndex]: {
+        ...prev[investorIndex],
+        [docType]: [...(prev[investorIndex]?.[docType] || []), ...files]
+      }
+    }));
+  };
+
+  const removeInvestorDocument = (investorIndex, docType, index) => {
+    setInvestorDocuments(prev => ({
+      ...prev,
+      [investorIndex]: {
+        ...prev[investorIndex],
+        [docType]: prev[investorIndex][docType].filter((_, i) => i !== index)
+      }
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -412,6 +905,28 @@ export default function NewDeal() {
         }
       }
 
+      // Upload investor documents by investor and type
+      const investorIndices = Object.keys(investorDocuments);
+      for (const investorIndex of investorIndices) {
+        const investorDocs = investorDocuments[investorIndex];
+        const docTypes = Object.keys(investorDocs);
+        for (const docType of docTypes) {
+          const docsOfType = investorDocs[docType];
+          for (const file of docsOfType) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('deal_id', dealId);
+            formData.append('document_type', `investor_${investorIndex}_${docType}`);
+            try {
+              await dealAPI.uploadDocument(formData);
+            } catch (uploadErr) {
+              toast.error(`Failed to upload investor ${parseInt(investorIndex) + 1} ${docType} file ${file.name}: ` + (uploadErr?.response?.data?.error || 'Unknown error'));
+              allUploadsSuccessful = false;
+            }
+          }
+        }
+      }
+
       if (allUploadsSuccessful) {
         toast.success('Deal created successfully!');
       } else {
@@ -426,20 +941,37 @@ export default function NewDeal() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gray-50 flex flex-col">
-      {/* Minimal Header with Back Button */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              ← Back
-            </button>
-            <div>
-              <h1 className="text-2xl font-semibold text-gray-900">Create New Deal</h1>
-              <p className="text-sm text-gray-600 mt-1">Fill in the details below</p>
+    <div className="min-h-screen w-full bg-slate-50 flex flex-col">
+      {/* Navigation */}
+      <div className="bg-white shadow-sm border-b border-slate-200 w-full">
+        <Navbar user={user} onLogout={() => router.push('/login')} />
+      </div>
+
+      {/* Page Header */}
+      <div className="w-full">
+        <div className="px-6 py-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center mr-4">
+                <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">Create New Deal</h1>
+                <p className="text-slate-600 mt-1">
+                  Add a new property deal to the system
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                type="button"
+                onClick={() => router.push('/dashboard')}
+                className="inline-flex items-center rounded-md bg-white px-6 py-3 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 cursor-pointer transition-all duration-200"
+              >
+                ← Back to Dashboard
+              </button>
             </div>
           </div>
         </div>
@@ -448,30 +980,30 @@ export default function NewDeal() {
       {/* Main Content - Full Screen Scrollable */}
       <div className="flex-1 overflow-y-auto">
         <form onSubmit={handleSubmit} className="w-full h-full">
-          <div className="max-w-none px-6 py-8 space-y-8">
+          <div className="w-full px-6 py-8 space-y-8">
 
             {/* Project & Land Details with Documents */}
-            <section className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
+            <section className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-slate-900 mb-6 pb-3 border-b border-slate-200">
                 Project & Land Details with Documents
               </h2>
               
               {/* Basic Project Information */}
               <div className="mb-8">
-                <h3 className="text-md font-medium text-gray-800 mb-4">Project Information</h3>
+                <h3 className="text-md font-medium text-slate-800 mb-4">Project Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   <Input label="Project Name" name="project_name" value={form.project_name} onChange={handleChange} required />
                   <Input label="Survey Number" name="survey_number" value={form.survey_number} onChange={handleChange} required />
-                  <Input label="Location" name="location" value={form.location} onChange={handleChange} required />
+                  {/* Location free-text removed: use structured State/District/Taluka/Village fields instead */}
                   
                   {/* State Selection */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">State</label>
                     <select 
                       name="state" 
                       value={form.state} 
                       onChange={handleChange} 
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500" 
                       required
                       disabled={locationLoading.states}
                     >
@@ -488,12 +1020,12 @@ export default function NewDeal() {
 
                   {/* District Selection */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">District</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">District</label>
                     <select 
                       name="district" 
                       value={form.district} 
                       onChange={handleChange} 
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500" 
                       required
                       disabled={!form.state || locationLoading.districts}
                     >
@@ -511,28 +1043,28 @@ export default function NewDeal() {
 
                   {/* Taluka Text Input */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Taluka</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Taluka</label>
                     <input
                       type="text"
                       name="taluka"
                       value={form.taluka}
                       onChange={handleChange}
                       placeholder="Enter taluka name"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors"
                       required
                     />
                   </div>
 
                   {/* Village Text Input */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Village</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Village</label>
                     <input
                       type="text"
                       name="village"
                       value={form.village}
                       onChange={handleChange}
                       placeholder="Enter village name"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors"
                       required
                     />
                   </div>
@@ -549,13 +1081,13 @@ export default function NewDeal() {
                         value={form.total_area} 
                         onChange={handleChange} 
                         placeholder="Enter area"
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors"
                       />
                       <select 
                         name="area_unit" 
                         value={form.area_unit} 
                         onChange={handleChange} 
-                        className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                       >
                         <option value="Acre">Acre</option>
                         <option value="Guntha">Guntha</option>
@@ -573,8 +1105,8 @@ export default function NewDeal() {
                   <Input type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*" label="Purchase Amount" name="purchase_amount" value={form.purchase_amount} onChange={handleChange} required />
                   <Input type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*" label="Selling Amount" name="selling_amount" value={form.selling_amount} onChange={handleChange} />
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                    <select name="status" value={form.status} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
+                    <select name="status" value={form.status} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500">
                       <option value="open">Open</option>
                       <option value="closed">Closed</option>
                     </select>
@@ -584,7 +1116,7 @@ export default function NewDeal() {
 
               {/* Land Documents Section */}
               <div>
-                <h3 className="text-md font-medium text-gray-800 mb-4">Land Documents</h3>
+                <h3 className="text-md font-medium text-slate-800 mb-4">Land Documents</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   
                   {/* 7/12 Extract */}
@@ -603,15 +1135,6 @@ export default function NewDeal() {
                     documents={landDocuments.property_card}
                     onChange={(e) => handleLandDocumentChange('property_card', e)}
                     onRemove={(index) => removeLandDocument('property_card', index)}
-                  />
-
-                  {/* Mutation Records */}
-                  <DocumentUploadField
-                    title="Mutation Records"
-                    description="Property transfer records"
-                    documents={landDocuments.mutation_records}
-                    onChange={(e) => handleLandDocumentChange('mutation_records', e)}
-                    onRemove={(index) => removeLandDocument('mutation_records', index)}
                   />
 
                   {/* Survey Map */}
@@ -665,24 +1188,24 @@ export default function NewDeal() {
             </section>
 
             {/* Owners & Documents */}
-            <section className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
+            <section className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-slate-900 mb-6 pb-3 border-b border-slate-200">
                 Owners & Documents
               </h2>
               
               {/* Individual Owners with their Documents */}
               <div className="space-y-8">
                 {form.owners.map((owner, idx) => (
-                  <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+                  <div key={idx} className="bg-slate-50 border border-slate-200 rounded-lg p-6">
                     {/* Owner Header */}
                     <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-md font-medium text-gray-800">
+                      <h3 className="text-md font-medium text-slate-800">
                         Owner {idx + 1} {owner.name && `- ${owner.name}`}
                       </h3>
                       {form.owners.length > 1 && (
                         <button 
                           type="button" 
-                          onClick={() => removeArrayItem('owners', idx)} 
+                          onClick={() => removeOwnerWithType(idx)} 
                           className="text-red-600 hover:text-red-800 text-sm font-medium transition-colors px-3 py-1 rounded border border-red-300 hover:border-red-400"
                         >
                           Remove Owner
@@ -690,138 +1213,329 @@ export default function NewDeal() {
                       )}
                     </div>
 
+                    {/* Owner Type Selection */}
+                    <div className="mb-6 p-4 bg-white border border-slate-200 rounded-lg">
+                      <h4 className="text-sm font-medium text-slate-700 mb-3">Owner Type</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div 
+                          className={`p-3 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                            (ownerSelectionTypes[idx] || 'new') === 'new' 
+                              ? 'border-slate-500 bg-slate-50' 
+                              : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                          onClick={() => handleOwnerTypeChange(idx, 'new')}
+                        >
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              name={`ownerType-${idx}`}
+                              value="new"
+                              checked={(ownerSelectionTypes[idx] || 'new') === 'new'}
+                              onChange={() => handleOwnerTypeChange(idx, 'new')}
+                              className="mr-3 w-4 h-4 text-slate-600"
+                            />
+                            <div>
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 text-slate-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                <span className="font-medium text-slate-900">New Owner</span>
+                              </div>
+                              <p className="text-xs text-slate-600 mt-1">Create a new owner profile</p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div 
+                          className={`p-3 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                            ownerSelectionTypes[idx] === 'existing' 
+                              ? 'border-slate-500 bg-slate-50' 
+                              : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                          onClick={() => handleOwnerTypeChange(idx, 'existing')}
+                        >
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              name={`ownerType-${idx}`}
+                              value="existing"
+                              checked={ownerSelectionTypes[idx] === 'existing'}
+                              onChange={() => handleOwnerTypeChange(idx, 'existing')}
+                              className="mr-3 w-4 h-4 text-slate-600"
+                            />
+                            <div>
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 text-slate-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                                </svg>
+                                <span className="font-medium text-slate-900">Existing Owner</span>
+                              </div>
+                              <p className="text-xs text-slate-600 mt-1">Select from {existingOwners.length} existing owners</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Existing Owner Dropdown */}
+                      {ownerSelectionTypes[idx] === 'existing' && (
+                        <div className="mt-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Select Existing Owner
+                          </label>
+                          <select
+                            value={selectedExistingOwners[idx] || ''}
+                            onChange={(e) => handleExistingOwnerSelect(idx, e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">Choose an existing owner</option>
+                            {existingOwners.map((existingOwner) => (
+                              <option key={existingOwner.id} value={existingOwner.id}>
+                                {existingOwner.name} - {existingOwner.mobile || 'No mobile'} ({existingOwner.email || 'No email'})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Owner Information */}
                     <div className="mb-6">
-                      <h4 className="text-sm font-medium text-gray-700 mb-3">Owner Information</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        <Input name="name" value={owner.name} onChange={(e) => handleArrayChange('owners', idx, e)} placeholder="Owner Name" required />
-                        <Input 
-                          name="mobile" 
-                          type="tel" 
-                          value={owner.mobile} 
-                          onChange={(e) => handleArrayChange('owners', idx, e)} 
-                          placeholder="Mobile Number" 
-                          pattern="[0-9]{10}"
-                          title="Enter 10-digit mobile number"
-                          maxLength="10" 
-                        />
-                        <Input 
-                          name="email" 
-                          type="email" 
-                          value={owner.email} 
-                          onChange={(e) => handleArrayChange('owners', idx, e)} 
-                          placeholder="Email Address"
-                          pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
-                          title="Enter valid email address"
-                        />
-                        <Input 
-                          name="aadhar_card" 
-                          value={owner.aadhar_card} 
-                          onChange={(e) => handleArrayChange('owners', idx, e)} 
-                          placeholder="XXXX XXXX XXXX" 
-                          pattern="[0-9]{4} [0-9]{4} [0-9]{4}"
-                          title="Enter 12-digit Aadhaar number"
-                          maxLength="14" 
-                        />
-                        <Input 
-                          name="pan_card" 
-                          value={owner.pan_card} 
-                          onChange={(e) => handleArrayChange('owners', idx, e)} 
-                          placeholder="ABCDE1234F" 
-                          pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}"
-                          title="Enter valid PAN card number (5 letters, 4 digits, 1 letter)"
-                          maxLength="10" 
-                        />
-                      </div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">
+                        Owner Information
+                        {ownerSelectionTypes[idx] === 'existing' && (
+                          <span className="ml-2 text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">(From Existing Owner)</span>
+                        )}
+                      </h4>
+                      
+                      {ownerSelectionTypes[idx] === 'existing' ? (
+                        // Read-only view for existing owners
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-slate-500 mb-1">Owner Name</label>
+                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+                              {owner.name || 'Not provided'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-slate-500 mb-1">Mobile Number</label>
+                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+                              {owner.mobile || 'Not provided'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-slate-500 mb-1">Email Address</label>
+                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+                              {owner.email || 'Not provided'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-slate-500 mb-1">Aadhaar Card</label>
+                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+                              {owner.aadhar_card || 'Not provided'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-slate-500 mb-1">PAN Card</label>
+                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+                              {owner.pan_card || 'Not provided'}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        // Editable form for new owners
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                          <Input name="name" value={owner.name} onChange={(e) => handleArrayChange('owners', idx, e)} placeholder="Owner Name" required />
+                          <Input 
+                            name="mobile" 
+                            type="tel" 
+                            value={owner.mobile} 
+                            onChange={(e) => handleArrayChange('owners', idx, e)} 
+                            placeholder="Mobile Number" 
+                            pattern="[0-9]{10}"
+                            title="Enter 10-digit mobile number"
+                            maxLength="10" 
+                          />
+                          <Input 
+                            name="email" 
+                            type="email" 
+                            value={owner.email} 
+                            onChange={(e) => handleArrayChange('owners', idx, e)} 
+                            placeholder="Email Address"
+                            pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
+                            title="Enter valid email address"
+                          />
+                          <Input 
+                            name="aadhar_card" 
+                            value={owner.aadhar_card} 
+                            onChange={(e) => handleArrayChange('owners', idx, e)} 
+                            placeholder="XXXX XXXX XXXX" 
+                            pattern="[0-9]{4} [0-9]{4} [0-9]{4}"
+                            title="Enter 12-digit Aadhaar number"
+                            maxLength="14" 
+                          />
+                          <Input 
+                            name="pan_card" 
+                            value={owner.pan_card} 
+                            onChange={(e) => handleArrayChange('owners', idx, e)} 
+                            placeholder="ABCDE1234F" 
+                            pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}"
+                            title="Enter valid PAN card number (5 letters, 4 digits, 1 letter)"
+                            maxLength="10" 
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* Owner Documents */}
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-3">Documents for {owner.name || `Owner ${idx + 1}`}</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        
-                        {/* Identity Proof */}
-                        <DocumentUploadField
-                          title="Identity Proof"
-                          description="Aadhaar, PAN, Passport, Voter ID"
-                          documents={ownerDocuments[idx]?.identity_proof || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'identity_proof', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'identity_proof', index)}
-                        />
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">
+                        Documents for {owner.name || `Owner ${idx + 1}`}
+                        {ownerSelectionTypes[idx] === 'existing' && (
+                          <span className="ml-2 text-xs text-blue-600">(Existing Owner)</span>
+                        )}
+                      </h4>
+                      
+                      {ownerSelectionTypes[idx] === 'existing' ? (
+                        // Existing Owner Documents
+                        <div>
+                          {existingOwnerDocuments[idx] && Object.keys(existingOwnerDocuments[idx]).length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                              {Object.entries(existingOwnerDocuments[idx]).map(([docType, docs]) => (
+                                <div key={docType} className="border rounded-lg p-3 bg-green-50">
+                                  <h5 className="font-medium text-green-800 mb-2">
+                                    {getDocumentDisplayName(docType)}
+                                  </h5>
+                                  <div className="space-y-2">
+                                    {docs.map((doc, docIdx) => (
+                                      <div key={docIdx} className="flex items-center justify-between text-sm">
+                                        <span className="text-green-700 truncate">{doc.name}</span>
+                                        <button
+                                          type="button"
+                                          className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 rounded bg-blue-100"
+                                          onClick={() => window.open(`http://localhost:5000/uploads/${doc.file_path}`, '_blank')}
+                                        >
+                                          View
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-slate-500 mb-4 p-3 bg-slate-50 rounded">
+                              No documents found for this owner.
+                            </div>
+                          )}
+                          
+                          {/* Missing Documents for Existing Owner */}
+                          {missingDocuments[idx] && Object.keys(missingDocuments[idx]).length > 0 && (
+                            <div>
+                              <h5 className="text-sm font-medium text-orange-700 mb-3">Missing Documents</h5>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {Object.entries(missingDocuments[idx]).map(([docType, isMissing]) => 
+                                  isMissing && (
+                                    <DocumentUploadField
+                                      key={docType}
+                                      title={getDocumentDisplayName(docType)}
+                                      description={getDocumentDescription(docType)}
+                                      documents={ownerDocuments[idx]?.[docType] || []}
+                                      onChange={(e) => handleOwnerDocumentChange(idx, docType, e)}
+                                      onRemove={(index) => removeOwnerDocument(idx, docType, index)}
+                                    />
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        // New Owner Documents
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          
+                          {/* Identity Proof */}
+                          <DocumentUploadField
+                            title="Identity Proof"
+                            description="Aadhaar, PAN, Passport, Voter ID"
+                            documents={ownerDocuments[idx]?.identity_proof || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'identity_proof', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'identity_proof', index)}
+                          />
 
-                        {/* Address Proof */}
-                        <DocumentUploadField
-                          title="Address Proof"
-                          description="Electricity Bill, Ration Card, etc."
-                          documents={ownerDocuments[idx]?.address_proof || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'address_proof', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'address_proof', index)}
-                        />
+                          {/* Address Proof */}
+                          <DocumentUploadField
+                            title="Address Proof"
+                            description="Electricity Bill, Ration Card, etc."
+                            documents={ownerDocuments[idx]?.address_proof || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'address_proof', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'address_proof', index)}
+                          />
 
-                        {/* Photograph */}
-                        <DocumentUploadField
-                          title="Photograph"
-                          description="Scanned photo for record"
-                          documents={ownerDocuments[idx]?.photograph || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'photograph', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'photograph', index)}
-                        />
+                          {/* Photograph */}
+                          <DocumentUploadField
+                            title="Photograph"
+                            description="Scanned photo for record"
+                            documents={ownerDocuments[idx]?.photograph || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'photograph', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'photograph', index)}
+                          />
 
-                        {/* Bank Account Details */}
-                        <DocumentUploadField
-                          title="Bank Account Details"
-                          description="Cancelled cheque or passbook copy"
-                          documents={ownerDocuments[idx]?.bank_details || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'bank_details', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'bank_details', index)}
-                        />
+                          {/* Bank Account Details */}
+                          <DocumentUploadField
+                            title="Bank Account Details"
+                            description="Cancelled cheque or passbook copy"
+                            documents={ownerDocuments[idx]?.bank_details || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'bank_details', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'bank_details', index)}
+                          />
 
-                        {/* Power of Attorney */}
-                        <DocumentUploadField
-                          title="Power of Attorney"
-                          description="If someone else is signing on behalf"
-                          documents={ownerDocuments[idx]?.power_of_attorney || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'power_of_attorney', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'power_of_attorney', index)}
-                        />
+                          {/* Power of Attorney */}
+                          <DocumentUploadField
+                            title="Power of Attorney"
+                            description="If someone else is signing on behalf"
+                            documents={ownerDocuments[idx]?.power_of_attorney || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'power_of_attorney', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'power_of_attorney', index)}
+                          />
 
-                        {/* Past Sale Deeds */}
-                        <DocumentUploadField
-                          title="Past Sale Deeds"
-                          description="Previous ownership records"
-                          documents={ownerDocuments[idx]?.past_sale_deeds || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'past_sale_deeds', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'past_sale_deeds', index)}
-                        />
+                          {/* Past Sale Deeds */}
+                          <DocumentUploadField
+                            title="Past Sale Deeds"
+                            description="Previous ownership records"
+                            documents={ownerDocuments[idx]?.past_sale_deeds || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'past_sale_deeds', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'past_sale_deeds', index)}
+                          />
 
-                        {/* NOC from Co-owners */}
-                        <DocumentUploadField
-                          title="NOC from Co-owners"
-                          description="Family members NOC (joint family property)"
-                          documents={ownerDocuments[idx]?.noc_co_owners || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'noc_co_owners', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'noc_co_owners', index)}
-                        />
+                          {/* NOC from Co-owners */}
+                          <DocumentUploadField
+                            title="NOC from Co-owners"
+                            description="Family members NOC (joint family property)"
+                            documents={ownerDocuments[idx]?.noc_co_owners || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'noc_co_owners', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'noc_co_owners', index)}
+                          />
 
-                        {/* NOC from Society/Gram Panchayat */}
-                        <DocumentUploadField
-                          title="NOC from Society/Gram Panchayat"
-                          description="If applicable"
-                          documents={ownerDocuments[idx]?.noc_society || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'noc_society', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'noc_society', index)}
-                        />
+                          {/* NOC from Society/Gram Panchayat */}
+                          <DocumentUploadField
+                            title="NOC from Society/Gram Panchayat"
+                            description="If applicable"
+                            documents={ownerDocuments[idx]?.noc_society || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'noc_society', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'noc_society', index)}
+                          />
 
-                        {/* Affidavit No Legal Dispute */}
-                        <DocumentUploadField
-                          title="Affidavit - No Legal Dispute"
-                          description="Declaration of no legal dispute"
-                          documents={ownerDocuments[idx]?.affidavit_no_dispute || []}
-                          onChange={(e) => handleOwnerDocumentChange(idx, 'affidavit_no_dispute', e)}
-                          onRemove={(index) => removeOwnerDocument(idx, 'affidavit_no_dispute', index)}
-                        />
+                          {/* Affidavit No Legal Dispute */}
+                          <DocumentUploadField
+                            title="Affidavit - No Legal Dispute"
+                            description="Declaration of no legal dispute"
+                            documents={ownerDocuments[idx]?.affidavit_no_dispute || []}
+                            onChange={(e) => handleOwnerDocumentChange(idx, 'affidavit_no_dispute', e)}
+                            onRemove={(index) => removeOwnerDocument(idx, 'affidavit_no_dispute', index)}
+                          />
 
-                      </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -829,7 +1543,7 @@ export default function NewDeal() {
                 {/* Add Owner Button - Moved to Bottom */}
                 <button 
                   type="button" 
-                  onClick={() => addArrayItem('owners', { name: '', mobile: '', email: '', aadhar_card: '', pan_card: '' })} 
+                  onClick={() => addOwnerWithType()} 
                   className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-gray-600 hover:border-gray-400 hover:text-gray-700 font-medium transition-colors"
                 >
                   + Add Owner
@@ -838,56 +1552,436 @@ export default function NewDeal() {
             </section>
 
             {/* Investors */}
-            <DynamicSection
-              title="Investors"
-              items={form.investors}
-              onAdd={() => addArrayItem('investors', { investor_name: '', investment_amount: '', investment_percentage: '', mobile: '', email: '', aadhar_card: '', pan_card: '' })}
-              onRemove={(idx) => removeArrayItem('investors', idx)}
-              render={(inv, idx) => (
-                <>
-                  <Input name="investor_name" value={inv.investor_name} onChange={(e) => handleArrayChange('investors', idx, e)} placeholder="Investor Name" required />
-                  <Input type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*" name="investment_amount" value={inv.investment_amount} onChange={(e) => handleArrayChange('investors', idx, e)} placeholder="Amount" required />
-                  <Input type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*" name="investment_percentage" value={inv.investment_percentage} onChange={(e) => handleArrayChange('investors', idx, e)} placeholder="Share (%)" required />
-                  <Input 
-                    name="mobile" 
-                    type="tel" 
-                    value={inv.mobile} 
-                    onChange={(e) => handleArrayChange('investors', idx, e)} 
-                    placeholder="Mobile Number" 
-                    pattern="[0-9]{10}"
-                    title="Enter 10-digit mobile number"
-                    maxLength="10" 
-                  />
-                  <Input 
-                    name="email" 
-                    type="email" 
-                    value={inv.email} 
-                    onChange={(e) => handleArrayChange('investors', idx, e)} 
-                    placeholder="Email Address"
-                    pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
-                    title="Enter valid email address"
-                  />
-                  <Input 
-                    name="aadhar_card" 
-                    value={inv.aadhar_card} 
-                    onChange={(e) => handleArrayChange('investors', idx, e)} 
-                    placeholder="XXXX XXXX XXXX" 
-                    pattern="[0-9]{4} [0-9]{4} [0-9]{4}"
-                    title="Enter 12-digit Aadhaar number"
-                    maxLength="14" 
-                  />
-                  <Input 
-                    name="pan_card" 
-                    value={inv.pan_card} 
-                    onChange={(e) => handleArrayChange('investors', idx, e)} 
-                    placeholder="ABCDE1234F" 
-                    pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}"
-                    title="Enter valid PAN card number (5 letters, 4 digits, 1 letter)"
-                    maxLength="10" 
-                  />
-                </>
-              )}
-            />
+            <section className="bg-white rounded-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
+                Investors & Documents
+              </h2>
+              
+              {/* Individual Investors with their Documents */}
+              <div className="space-y-8">
+                {form.investors.map((investor, idx) => (
+                  <div key={idx} className="bg-slate-50 border border-slate-200 rounded-lg p-6">
+                    {/* Investor Header */}
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-md font-medium text-gray-800">
+                        Investor {idx + 1} {investor.investor_name && `- ${investor.investor_name}`}
+                      </h3>
+                      {form.investors.length > 1 && (
+                        <button 
+                          type="button" 
+                          onClick={() => removeInvestorWithType(idx)} 
+                          className="text-red-600 hover:text-red-800 text-sm font-medium transition-colors px-3 py-1 rounded border border-red-300 hover:border-red-400"
+                        >
+                          Remove Investor
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Investor Type Selection */}
+                    <div className="mb-6 p-4 bg-white border border-gray-200 rounded-lg">
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">Investor Type</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div 
+                          className={`p-3 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                            (investorSelectionTypes[idx] || 'new') === 'new' 
+                              ? 'border-blue-500 bg-blue-50' 
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => handleInvestorTypeChange(idx, 'new')}
+                        >
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              name={`investorType-${idx}`}
+                              value="new"
+                              checked={(investorSelectionTypes[idx] || 'new') === 'new'}
+                              onChange={() => handleInvestorTypeChange(idx, 'new')}
+                              className="mr-3 w-4 h-4 text-blue-600"
+                            />
+                            <div>
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 text-gray-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                <span className="font-medium text-gray-900">New Investor</span>
+                              </div>
+                              <p className="text-xs text-gray-600 mt-1">Create a new investor profile</p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div 
+                          className={`p-3 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                            investorSelectionTypes[idx] === 'existing' 
+                              ? 'border-blue-500 bg-blue-50' 
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => handleInvestorTypeChange(idx, 'existing')}
+                        >
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              name={`investorType-${idx}`}
+                              value="existing"
+                              checked={investorSelectionTypes[idx] === 'existing'}
+                              onChange={() => handleInvestorTypeChange(idx, 'existing')}
+                              className="mr-3 w-4 h-4 text-blue-600"
+                            />
+                            <div>
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 text-gray-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                <span className="font-medium text-gray-900">Existing Investor</span>
+                              </div>
+                              <p className="text-xs text-gray-600 mt-1">Select from {existingInvestors.length} existing investors</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Existing Investor Dropdown */}
+                      {investorSelectionTypes[idx] === 'existing' && (
+                        <div className="mt-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Select Existing Investor
+                          </label>
+                          <select
+                            value={selectedExistingInvestors[idx] || ''}
+                            onChange={(e) => handleExistingInvestorSelect(idx, e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">Choose an existing investor</option>
+                            {existingInvestors.map((existingInvestor) => (
+                              <option key={existingInvestor.id} value={existingInvestor.id}>
+                                {existingInvestor.investor_name} - {existingInvestor.mobile || 'No mobile'} ({existingInvestor.email || 'No email'})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Investor Information */}
+                    <div className="mb-6">
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">
+                        Investor Information
+                        {investorSelectionTypes[idx] === 'existing' && (
+                          <span className="ml-2 text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">(From Existing Investor)</span>
+                        )}
+                      </h4>
+                      
+                      {investorSelectionTypes[idx] === 'existing' ? (
+                        // Read-only view for existing investors
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Investor Name</label>
+                            <div className="p-2 bg-gray-100 border border-gray-200 rounded text-sm text-gray-800">
+                              {investor.investor_name || 'Not specified'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Investment Amount</label>
+                            <div className="p-2 bg-gray-100 border border-gray-200 rounded text-sm text-gray-800">
+                              {investor.investment_amount || 'Not specified'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Investment %</label>
+                            <div className="p-2 bg-gray-100 border border-gray-200 rounded text-sm text-gray-800">
+                              {investor.investment_percentage || 'Not specified'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Mobile</label>
+                            <div className="p-2 bg-gray-100 border border-gray-200 rounded text-sm text-gray-800">
+                              {investor.mobile || 'Not specified'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+                            <div className="p-2 bg-gray-100 border border-gray-200 rounded text-sm text-gray-800">
+                              {investor.email || 'Not specified'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Aadhaar Card</label>
+                            <div className="p-2 bg-gray-100 border border-gray-200 rounded text-sm text-gray-800">
+                              {investor.aadhar_card || 'Not specified'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">PAN Card</label>
+                            <div className="p-2 bg-gray-100 border border-gray-200 rounded text-sm text-gray-800">
+                              {investor.pan_card || 'Not specified'}
+                            </div>
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Address</label>
+                            <div className="p-2 bg-gray-100 border border-gray-200 rounded text-sm text-gray-800">
+                              {investor.address || 'Not specified'}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        // Editable form for new investors
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Investor Name *</label>
+                            <input
+                              type="text"
+                              name="investor_name"
+                              value={investor.investor_name}
+                              onChange={(e) => handleArrayChange('investors', idx, e)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Enter investor name"
+                              required
+                            />
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Investment Amount</label>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              pattern="[0-9]*\.?[0-9]*"
+                              name="investment_amount"
+                              value={investor.investment_amount}
+                              onChange={(e) => handleArrayChange('investors', idx, e)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Amount"
+                            />
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Investment %</label>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              pattern="[0-9]*\.?[0-9]*"
+                              name="investment_percentage"
+                              value={investor.investment_percentage}
+                              onChange={(e) => handleArrayChange('investors', idx, e)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Share %"
+                            />
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Mobile</label>
+                            <input
+                              type="tel"
+                              name="mobile"
+                              value={investor.mobile}
+                              onChange={(e) => handleArrayChange('investors', idx, e)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="10-digit mobile number"
+                              pattern="[0-9]{10}"
+                              maxLength="10"
+                            />
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+                            <input
+                              type="email"
+                              name="email"
+                              value={investor.email}
+                              onChange={(e) => handleArrayChange('investors', idx, e)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Email address"
+                            />
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Aadhaar Card</label>
+                            <input
+                              type="text"
+                              name="aadhar_card"
+                              value={investor.aadhar_card}
+                              onChange={(e) => handleArrayChange('investors', idx, e)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="XXXX XXXX XXXX"
+                              pattern="[0-9]{4} [0-9]{4} [0-9]{4}"
+                              maxLength="14"
+                            />
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">PAN Card</label>
+                            <input
+                              type="text"
+                              name="pan_card"
+                              value={investor.pan_card}
+                              onChange={(e) => handleArrayChange('investors', idx, e)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="ABCDE1234F"
+                              pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}"
+                              maxLength="10"
+                            />
+                          </div>
+                          <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Address</label>
+                            <input
+                              type="text"
+                              name="address"
+                              value={investor.address}
+                              onChange={(e) => handleArrayChange('investors', idx, e)}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Address"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Investor Documents */}
+                    <div className="mt-6">
+                      <h4 className="text-sm font-medium text-gray-700 mb-4">
+                        Investor Documents
+                        {investorSelectionTypes[idx] === 'existing' && (
+                          <span className="ml-2 text-xs text-green-600 bg-green-100 px-2 py-1 rounded">(Existing + Missing)</span>
+                        )}
+                      </h4>
+                      
+                      {investorSelectionTypes[idx] === 'existing' && selectedExistingInvestors[idx] ? (
+                        <div>
+                          {/* Existing Investor Documents Display */}
+                          {existingInvestorDocuments[idx] && Object.keys(existingInvestorDocuments[idx]).length > 0 ? (
+                            <div className="mb-4">
+                              <h5 className="text-sm font-medium text-green-700 mb-3">Existing Documents</h5>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {Object.entries(existingInvestorDocuments[idx]).map(([docType, docs]) => (
+                                  <div key={docType} className="p-3 bg-green-50 rounded-lg border border-green-200">
+                                    <h6 className="font-medium text-green-800 capitalize mb-2">
+                                      {getInvestorDocumentDisplayName(docType)}
+                                    </h6>
+                                    <div className="space-y-1">
+                                      {docs.map((doc, docIdx) => (
+                                        <div key={docIdx} className="text-sm text-green-700 truncate">
+                                          📄 {doc.filename || doc.file_path?.split('/').pop()}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-slate-500 mb-4 p-3 bg-slate-50 rounded">
+                              No documents found for this investor.
+                            </div>
+                          )}
+                          
+                          {/* Missing Documents for Existing Investor */}
+                          {investorMissingDocuments[idx] && Object.keys(investorMissingDocuments[idx]).length > 0 && (
+                            <div>
+                              <h5 className="text-sm font-medium text-orange-700 mb-3">Missing Documents</h5>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {Object.entries(investorMissingDocuments[idx]).map(([docType, isMissing]) => 
+                                  isMissing && (
+                                    <DocumentUploadField
+                                      key={docType}
+                                      title={getInvestorDocumentDisplayName(docType)}
+                                      description={getInvestorDocumentDescription(docType)}
+                                      documents={investorDocuments[idx]?.[docType] || []}
+                                      onChange={(e) => handleInvestorDocumentChange(idx, docType, e)}
+                                      onRemove={(index) => removeInvestorDocument(idx, docType, index)}
+                                    />
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        // New Investor Documents
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          
+                          {/* Investor KYC: Aadhaar, PAN, Passport/Voter ID */}
+                          <DocumentUploadField
+                            title="Investor KYC"
+                            description="Aadhaar, PAN, Passport/Voter ID"
+                            documents={investorDocuments[idx]?.identity_proof || []}
+                            onChange={(e) => handleInvestorDocumentChange(idx, 'identity_proof', e)}
+                            onRemove={(index) => removeInvestorDocument(idx, 'identity_proof', index)}
+                          />
+
+                          {/* Photograph */}
+                          <DocumentUploadField
+                            title="Photograph"
+                            description="Scanned photo for record"
+                            documents={investorDocuments[idx]?.photograph || []}
+                            onChange={(e) => handleInvestorDocumentChange(idx, 'photograph', e)}
+                            onRemove={(index) => removeInvestorDocument(idx, 'photograph', index)}
+                          />
+
+                          {/* Bank Account Details */}
+                          <DocumentUploadField
+                            title="Bank Account Details"
+                            description="Cheque/passbook copy"
+                            documents={investorDocuments[idx]?.bank_details || []}
+                            onChange={(e) => handleInvestorDocumentChange(idx, 'bank_details', e)}
+                            onRemove={(index) => removeInvestorDocument(idx, 'bank_details', index)}
+                          />
+
+                          {/* Capital Commitment Agreement */}
+                          <DocumentUploadField
+                            title="Capital Commitment Agreement"
+                            description="How much %/₹ invested"
+                            documents={investorDocuments[idx]?.investment_agreement || []}
+                            onChange={(e) => handleInvestorDocumentChange(idx, 'investment_agreement', e)}
+                            onRemove={(index) => removeInvestorDocument(idx, 'investment_agreement', index)}
+                          />
+
+                          {/* Actual Contribution Records */}
+                          <DocumentUploadField
+                            title="Actual Contribution Records"
+                            description="Transaction proof"
+                            documents={investorDocuments[idx]?.financial_proof || []}
+                            onChange={(e) => handleInvestorDocumentChange(idx, 'financial_proof', e)}
+                            onRemove={(index) => removeInvestorDocument(idx, 'financial_proof', index)}
+                          />
+
+                          {/* Partnership/Joint Venture Agreement */}
+                          <DocumentUploadField
+                            title="Partnership/Joint Venture Agreement"
+                            description="Signed by all investors"
+                            documents={investorDocuments[idx]?.partnership_agreement || []}
+                            onChange={(e) => handleInvestorDocumentChange(idx, 'partnership_agreement', e)}
+                            onRemove={(index) => removeInvestorDocument(idx, 'partnership_agreement', index)}
+                          />
+
+                          {/* Loan Agreement */}
+                          <DocumentUploadField
+                            title="Loan Agreement"
+                            description="If investor money is borrowed"
+                            documents={investorDocuments[idx]?.loan_agreement || []}
+                            onChange={(e) => handleInvestorDocumentChange(idx, 'loan_agreement', e)}
+                            onRemove={(index) => removeInvestorDocument(idx, 'loan_agreement', index)}
+                          />
+
+                          {/* Power of Attorney */}
+                          <DocumentUploadField
+                            title="Power of Attorney"
+                            description="Optional, if investor authorizes manager"
+                            documents={investorDocuments[idx]?.power_of_attorney || []}
+                            onChange={(e) => handleInvestorDocumentChange(idx, 'power_of_attorney', e)}
+                            onRemove={(index) => removeInvestorDocument(idx, 'power_of_attorney', index)}
+                          />
+
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Add Investor Button - Moved to Bottom */}
+                <div className="flex justify-center pt-4">
+                  <button 
+                    type="button" 
+                    onClick={addInvestorWithType}
+                    className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors px-4 py-2 border border-blue-300 rounded-lg hover:border-blue-400 hover:bg-blue-50"
+                  >
+                    + Add Investor
+                  </button>
+                </div>
+              </div>
+            </section>
 
             {/* Expenses */}
             <DynamicSection
@@ -906,26 +2000,6 @@ export default function NewDeal() {
                 </>
               )}
             />
-
-            {/* Payment & Mutation */}
-            <section className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
-                Payment & Mutation
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <Input label="Payment Mode" name="payment_mode" value={form.payment_mode} onChange={handleChange} placeholder="Bank, Cash, Cheque, Card" />
-                <div className="flex items-center pt-6">
-                  <input 
-                    type="checkbox" 
-                    name="mutation_done" 
-                    checked={form.mutation_done} 
-                    onChange={handleChange} 
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-3" 
-                  />
-                  <label className="text-sm font-medium text-gray-700">Mutation Done</label>
-                </div>
-              </div>
-            </section>
 
             {/* Buyers */}
             <DynamicSection
@@ -977,14 +2051,6 @@ export default function NewDeal() {
               )}
             />
 
-            {/* Profit Allocation */}
-            <section className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
-                Profit Allocation
-              </h2>
-              <Input name="profit_allocation" value={form.profit_allocation} onChange={handleChange} placeholder="Describe how profit is distributed" />
-            </section>
-
             {/* Documents */}
             <section className="bg-white rounded-lg border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
@@ -1013,20 +2079,20 @@ export default function NewDeal() {
 
           </div>
 
-          {/* Minimal Fixed Submit Button */}
-          <div className="bg-white border-t border-gray-200 px-6 py-4">
+          {/* Submit Button Section - Consistent with Dashboard */}
+          <div className="bg-white border-t border-slate-200 px-6 py-4">
             <div className="max-w-md mx-auto flex space-x-4">
               <button 
                 type="button"
                 onClick={() => router.push('/dashboard')}
-                className="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 font-medium transition-colors"
+                className="flex-1 bg-white text-slate-700 px-6 py-3 rounded-md border border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500 font-medium transition-colors"
               >
                 Cancel
               </button>
               <button 
                 type="submit" 
                 disabled={loading} 
-                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+                className="flex-1 bg-slate-900 text-white px-6 py-3 rounded-md hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
               >
                 {loading ? 'Creating...' : 'Create Deal'}
               </button>
@@ -1042,12 +2108,12 @@ export default function NewDeal() {
 function Input({ label, pattern, title, ...props }) {
   return (
     <div className="w-full">
-      {label && <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>}
+      {label && <label className="block text-sm font-medium text-slate-700 mb-2">{label}</label>}
       <input 
         {...props} 
         pattern={pattern}
         title={title}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" 
+        className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors" 
       />
     </div>
   );
@@ -1055,18 +2121,18 @@ function Input({ label, pattern, title, ...props }) {
 
 function DynamicSection({ title, items, onAdd, onRemove, render }) {
   return (
-    <section className="bg-white rounded-lg border border-gray-200 p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
+    <section className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+      <h2 className="text-lg font-semibold text-slate-900 mb-6 pb-3 border-b border-slate-200">
         {title}
       </h2>
       <div className="space-y-6">
         {items.map((item, idx) => (
-          <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+          <div key={idx} className="bg-slate-50 border border-slate-200 rounded-lg p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-4">
               {render(item, idx)}
             </div>
             {items.length > 1 && (
-              <div className="flex justify-end pt-4 border-t border-gray-200">
+              <div className="flex justify-end pt-4 border-t border-slate-200">
                 <button 
                   type="button" 
                   onClick={() => onRemove(idx)} 
@@ -1081,7 +2147,7 @@ function DynamicSection({ title, items, onAdd, onRemove, render }) {
         <button 
           type="button" 
           onClick={onAdd} 
-          className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-gray-600 hover:border-gray-400 hover:text-gray-700 font-medium transition-colors"
+          className="w-full border-2 border-dashed border-slate-300 rounded-lg p-4 text-slate-600 hover:border-slate-400 hover:text-slate-700 font-medium transition-colors"
         >
           + Add {title.slice(0, -1)}
         </button>
@@ -1092,18 +2158,18 @@ function DynamicSection({ title, items, onAdd, onRemove, render }) {
 
 function AdditionalDocsField({ additionalDocs, onAdd, onRemove, onUpdateName, onUpdateFiles, onRemoveFile }) {
   return (
-    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
       <div className="mb-3">
-        <h3 className="text-sm font-semibold text-gray-900 mb-1">Additional Documents</h3>
-        <p className="text-xs text-gray-600">Add custom named documents (up to 5)</p>
+        <h3 className="text-sm font-semibold text-slate-900 mb-1">Additional Documents</h3>
+        <p className="text-xs text-slate-600">Add custom named documents (up to 5)</p>
       </div>
       
       <div className="space-y-4">
         {additionalDocs.map((doc, docIndex) => (
-          <div key={docIndex} className="bg-white border border-gray-200 rounded-lg p-4">
+          <div key={docIndex} className="bg-white border border-slate-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex-1 mr-3">
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-slate-700 mb-1">
                   Document Name *
                 </label>
                 <input
@@ -1111,7 +2177,7 @@ function AdditionalDocsField({ additionalDocs, onAdd, onRemove, onUpdateName, on
                   value={doc.name}
                   onChange={(e) => onUpdateName(docIndex, e.target.value)}
                   placeholder="e.g., NOC Certificate, Power of Attorney"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                   required
                 />
               </div>
@@ -1142,7 +2208,7 @@ function AdditionalDocsField({ additionalDocs, onAdd, onRemove, onUpdateName, on
                 />
                 <label
                   htmlFor={`additional-upload-${docIndex}`}
-                  className="w-full bg-blue-50 border border-blue-200 text-blue-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-100 transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full bg-slate-100 border border-slate-300 text-slate-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-200 transition-colors cursor-pointer flex items-center justify-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1155,12 +2221,12 @@ function AdditionalDocsField({ additionalDocs, onAdd, onRemove, onUpdateName, on
               {doc.files.length > 0 && (
                 <div className="space-y-2">
                   {doc.files.map((file, fileIndex) => (
-                    <div key={fileIndex} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded px-3 py-2">
+                    <div key={fileIndex} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded px-3 py-2">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        <span className="text-xs text-gray-700 truncate" title={file.name}>
+                        <span className="text-xs text-slate-700 truncate" title={file.name}>
                           {file.name}
                         </span>
                       </div>
@@ -1180,7 +2246,7 @@ function AdditionalDocsField({ additionalDocs, onAdd, onRemove, onUpdateName, on
 
               {/* File Count */}
               {doc.files.length > 0 && (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-slate-500">
                   {doc.files.length} file{doc.files.length !== 1 ? 's' : ''} selected{doc.name ? ` for ${doc.name}` : ''}
                 </p>
               )}
@@ -1193,7 +2259,7 @@ function AdditionalDocsField({ additionalDocs, onAdd, onRemove, onUpdateName, on
           <button
             type="button"
             onClick={onAdd}
-            className="w-full border-2 border-dashed border-gray-300 rounded-lg p-3 text-gray-600 hover:border-gray-400 hover:text-gray-700 font-medium transition-colors flex items-center justify-center gap-2"
+            className="w-full border-2 border-dashed border-slate-300 rounded-lg p-3 text-slate-600 hover:border-slate-400 hover:text-slate-700 font-medium transition-colors flex items-center justify-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1203,7 +2269,7 @@ function AdditionalDocsField({ additionalDocs, onAdd, onRemove, onUpdateName, on
         )}
 
         {additionalDocs.length >= 5 && (
-          <p className="text-xs text-gray-500 text-center italic">
+          <p className="text-xs text-slate-500 text-center italic">
             Maximum 5 additional documents allowed
           </p>
         )}
@@ -1214,10 +2280,10 @@ function AdditionalDocsField({ additionalDocs, onAdd, onRemove, onUpdateName, on
 
 function DocumentUploadField({ title, description, documents, onChange, onRemove }) {
   return (
-    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
       <div className="mb-3">
-        <h3 className="text-sm font-semibold text-gray-900 mb-1">{title}</h3>
-        <p className="text-xs text-gray-600">{description}</p>
+        <h3 className="text-sm font-semibold text-slate-900 mb-1">{title}</h3>
+        <p className="text-xs text-slate-600">{description}</p>
       </div>
       
       <div className="space-y-3">
@@ -1233,7 +2299,7 @@ function DocumentUploadField({ title, description, documents, onChange, onRemove
           />
           <label
             htmlFor={`upload-${title.replace(/\s+/g, '-').toLowerCase()}`}
-            className="w-full bg-blue-50 border border-blue-200 text-blue-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-100 transition-colors cursor-pointer flex items-center justify-center gap-2"
+            className="w-full bg-slate-100 border border-slate-300 text-slate-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-200 transition-colors cursor-pointer flex items-center justify-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1246,12 +2312,12 @@ function DocumentUploadField({ title, description, documents, onChange, onRemove
         {documents.length > 0 && (
           <div className="space-y-2">
             {documents.map((file, index) => (
-              <div key={index} className="flex items-center justify-between bg-white border border-gray-200 rounded px-3 py-2">
+              <div key={index} className="flex items-center justify-between bg-white border border-slate-200 rounded px-3 py-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  <span className="text-xs text-gray-700 truncate" title={file.name}>
+                  <span className="text-xs text-slate-700 truncate" title={file.name}>
                     {file.name}
                   </span>
                 </div>
@@ -1271,7 +2337,7 @@ function DocumentUploadField({ title, description, documents, onChange, onRemove
 
         {/* File Count */}
         {documents.length > 0 && (
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-slate-500">
             {documents.length} file{documents.length !== 1 ? 's' : ''} selected
           </p>
         )}

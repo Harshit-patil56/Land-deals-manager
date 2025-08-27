@@ -1,6 +1,7 @@
 {
-  "name": "my-app",
-  "version": "0.1.0",
+  "name": "land-deals-frontend",
+  "version": "1.0.0",
+  "description": "Land Deals Manager - Frontend Application",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",

@@ -71,31 +71,45 @@ export default function PaymentDetailPage() {
 
   if (loading) return (
     <div className="min-h-screen bg-slate-50">
-      <div className="bg-white shadow-sm border-b border-slate-200 w-full"><Navbar/></div>
-      <div className="max-w-6xl mx-auto py-12 px-6">Loading...</div>
+      <div className="bg-slate-50 border-b border-slate-200 w-full"><Navbar/></div>
+      <div className="max-w-6xl mx-auto py-12 px-6">
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="text-slate-600">Loading payment details...</div>
+        </div>
+      </div>
     </div>
   )
 
   if (!payment) return (
     <div className="min-h-screen bg-slate-50">
-      <div className="bg-white shadow-sm border-b border-slate-200 w-full"><Navbar/></div>
-      <div className="max-w-6xl mx-auto py-12 px-6">Payment not found</div>
+      <div className="bg-slate-50 border-b border-slate-200 w-full"><Navbar/></div>
+      <div className="max-w-6xl mx-auto py-12 px-6">
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="text-slate-600">Payment not found</div>
+        </div>
+      </div>
     </div>
   )
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="bg-white shadow-sm border-b border-slate-200 w-full"><Navbar/></div>
+      <div className="bg-slate-50 border-b border-slate-200 w-full"><Navbar/></div>
       <div className="max-w-6xl mx-auto py-8 px-6">
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <div className="flex items-start justify-between">
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <div className="flex items-start justify-between mb-6">
             <div>
               <h2 className="text-xl font-semibold text-slate-900">Payment #{payment.id}</h2>
               <p className="text-sm text-slate-600 mt-1">{payment.payment_date?.split('T')[0] || payment.payment_date} • ₹{Number(payment.amount).toLocaleString()}</p>
             </div>
-            <div>
-              <button onClick={() => router.back()} className="inline-flex items-center rounded-md bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50">Back</button>
-            </div>
+            <button 
+              onClick={() => router.push({ pathname: '/deals/payments', query: { id } })} 
+              className="inline-flex items-center rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200 transition-colors border border-slate-300"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Back to Payments
+            </button>
           </div>
 
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">

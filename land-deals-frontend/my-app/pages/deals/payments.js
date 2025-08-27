@@ -147,7 +147,7 @@ export default function PaymentsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="bg-white shadow-sm border-b border-slate-200 w-full">
+      <div className="bg-slate-50 border-b border-slate-200 w-full">
         <Navbar />
       </div>
 
@@ -159,7 +159,15 @@ export default function PaymentsPage() {
               <p className="text-sm text-slate-500 mt-1">Track payments for deal #{id}</p>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={() => router.push(`/deals/${id}`)} className="inline-flex items-center rounded-md bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50">Back</button>
+              <button 
+                onClick={() => router.push(`/deals/${id}`)} 
+                className="inline-flex items-center rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200 transition-colors border border-slate-300"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back to Deal
+              </button>
             </div>
           </div>
         </div>
@@ -169,12 +177,20 @@ export default function PaymentsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg border border-slate-200 p-6">
-              <h3 className="text-lg font-semibold mb-4">Add Payment</h3>
+              <h3 className="text-lg font-semibold mb-4 text-slate-900">Add Payment</h3>
               {!isAuthed ? (
                 <div className="text-sm text-slate-600">Please log in to add payments.</div>
               ) : (
                 <div>
-                  <button onClick={() => router.push(`/deals/${id}/add-payment`)} className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">Open Add Payment</button>
+                  <button 
+                    onClick={() => router.push(`/deals/${id}/add-payment`)} 
+                    className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition-colors"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Add New Payment
+                  </button>
                 </div>
               )}
             </div>

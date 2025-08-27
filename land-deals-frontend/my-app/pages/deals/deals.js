@@ -3,6 +3,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import { getUser, logout, isAuthenticated } from '../../lib/auth'
 import { dealAPI } from '../../lib/api'
+import { hasPermission, PERMISSIONS } from '../../lib/permissions'
+import { CreateButton, EditButton, DeleteButton } from '../../components/common/PermissionButton'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import Navbar from '../../components/layout/Navbar'
@@ -67,7 +69,7 @@ export default function DealsPage() {
       </div>
 
       {/* Page Header */}
-      <div className="bg-white border-b border-slate-200">
+      <div className="">
         <div className="px-6 py-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -89,6 +91,17 @@ export default function DealsPage() {
                   {deals.length} deal{deals.length !== 1 ? 's' : ''} found
                 </span>
               </div>
+              <CreateButton
+                user={user}
+                resource="deals"
+                onClick={() => router.push('/deals/new')}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-slate-900 hover:bg-slate-800 transition-colors"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                New Deal
+              </CreateButton>
               <Link href="/dashboard">
                 <span className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 cursor-pointer transition-colors">
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -113,14 +126,17 @@ export default function DealsPage() {
             </div>
             <h3 className="text-xl font-semibold text-slate-900 mb-3">No deals found</h3>
             <p className="text-slate-600 mb-8">Get started by creating your first property deal to begin tracking your transactions.</p>
-            <Link href="/deals/new">
-              <span className="inline-flex items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 cursor-pointer transition-colors">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                Create New Deal
-              </span>
-            </Link>
+            <CreateButton
+              user={user}
+              resource="deals"
+              onClick={() => router.push('/deals/new')}
+              className="inline-flex items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 transition-colors"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Create New Deal
+            </CreateButton>
           </div>
         ) : (
           <div className="space-y-6">
@@ -155,7 +171,7 @@ export default function DealsPage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                               </svg>
-                              <span><strong>Location:</strong> {deal.location}</span>
+                              <span><strong>Location:</strong> {(deal.district || deal.taluka || deal.village) ? `${deal.district || ''}${deal.district && deal.taluka ? ', ' : ''}${deal.taluka || ''}${(deal.village && (deal.district || deal.taluka)) ? ', ' : ''}${deal.village || ''}` : 'N/A'}</span>
                             </div>
                             <div className="flex items-center">
                               <svg className="w-4 h-4 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -302,19 +318,11 @@ export default function DealsPage() {
                 <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4 text-sm text-slate-600">
-                      <span className="flex items-center">
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-                        </svg>
-                        Deal ID: #{deal.id}
-                      </span>
+                      <span>Deal ID: #{deal.id}</span>
                       <span>•</span>
-                      <span className="flex items-center">
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Last updated: {new Date(deal.updated_at || deal.created_at).toLocaleDateString()}
-                      </span>
+                      <span><strong>Location:</strong> {(deal.district || deal.taluka || deal.village) ? `${deal.district || ''}${deal.district && deal.taluka ? ', ' : ''}${deal.taluka || ''}${(deal.village && (deal.district || deal.taluka)) ? ', ' : ''}${deal.village || ''}` : 'N/A'}</span>
+                      <span>•</span>
+                      <span><strong>Survey:</strong> {deal.survey_number || 'Not specified'}</span>
                       {deal.expenses_total && (
                         <>
                           <span>•</span>
@@ -327,27 +335,46 @@ export default function DealsPage() {
                         </>
                       )}
                     </div>
-                    <button
-                      className="text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50 px-4 py-2 rounded-md transition-all duration-200 inline-flex items-center border border-red-200 hover:border-red-300"
-                      onClick={async (e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        if (window.confirm('Are you sure you want to delete this deal? This action cannot be undone.')) {
-                          try {
-                            await dealAPI.delete(deal.id)
-                            toast.success('Deal deleted successfully')
-                            setDeals(deals.filter(d => d.id !== deal.id))
-                          } catch {
-                            toast.error('Failed to delete deal')
+                    <div className="flex items-center space-x-3">
+                      <EditButton
+                        user={user}
+                        resource="deals"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          router.push(`/deals/edit/${deal.id}`)
+                        }}
+                        className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 rounded-md transition-all duration-200 inline-flex items-center border border-blue-200 hover:border-blue-300"
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Edit Deal
+                      </EditButton>
+                      <DeleteButton
+                        user={user}
+                        resource="deals"
+                        onClick={async (e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          if (window.confirm('Are you sure you want to delete this deal? This action cannot be undone.')) {
+                            try {
+                              await dealAPI.delete(deal.id)
+                              toast.success('Deal deleted successfully')
+                              setDeals(deals.filter(d => d.id !== deal.id))
+                            } catch {
+                              toast.error('Failed to delete deal')
+                            }
                           }
-                        }
-                      }}
-                    >
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      Delete Deal
-                    </button>
+                        }}
+                        className="text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50 px-4 py-2 rounded-md transition-all duration-200 inline-flex items-center border border-red-200 hover:border-red-300"
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Delete Deal
+                      </DeleteButton>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -355,49 +382,6 @@ export default function DealsPage() {
           </div>
         )}
       </div>
-
-      {/* Enhanced Footer Stats */}
-      <footer className="bg-white border-t border-slate-200">
-        <div className="px-6 py-4">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Active Deals:</span>
-                <span className="ml-2 inline-flex items-center px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
-                  {deals.filter(d => d.status === 'open').length}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Closed Deals:</span>
-                <span className="ml-2 inline-flex items-center px-2 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-medium">
-                  {deals.filter(d => d.status === 'closed').length}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Total Investment:</span>
-                <span className="ml-2 font-semibold text-slate-900">
-                  ₹{deals.reduce((sum, deal) => sum + (deal.purchase_amount || 0), 0).toLocaleString('en-IN')}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <span className="font-medium text-slate-700">Total Revenue:</span>
-                <span className="ml-2 font-semibold text-emerald-600">
-                  ₹{deals.reduce((sum, deal) => sum + (deal.selling_amount || 0), 0).toLocaleString('en-IN')}
-                </span>
-              </div>
-            </div>
-            <div className="mt-4 lg:mt-0 text-sm text-slate-500">
-              Last updated: {new Date().toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }
