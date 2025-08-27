@@ -2639,6 +2639,133 @@ def admin_list_users(current_user):
             conn.close()
 
 
+@app.route('/api/investors', methods=['GET'])
+@token_required
+def get_all_investors(current_user):
+    """Return all investors across deals"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM investors ORDER BY investor_name")
+        rows = cursor.fetchall() or []
+        # convert datetime fields if present
+        for r in rows:
+            for k, v in list(r.items()):
+                if isinstance(v, datetime):
+                    r[k] = v.isoformat()
+        return jsonify(rows)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/investors/<int:investor_id>', methods=['GET'])
+@token_required
+def get_investor(current_user, investor_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM investors WHERE id = %s LIMIT 1", (investor_id,))
+        inv = cursor.fetchone()
+        if not inv:
+            return jsonify({'error': 'Investor not found'}), 404
+        for k, v in list(inv.items()):
+            if isinstance(v, datetime):
+                inv[k] = v.isoformat()
+        return jsonify(inv)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/investors', methods=['POST'])
+@token_required
+def create_investor(current_user):
+    try:
+        data = request.get_json() or {}
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("""
+            INSERT INTO investors (deal_id, investor_name, investment_amount, investment_percentage, mobile, email, aadhar_card, pan_card, address)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            data.get('deal_id'),
+            data.get('investor_name'),
+            data.get('investment_amount'),
+            data.get('investment_percentage'),
+            data.get('mobile'),
+            data.get('email'),
+            data.get('aadhar_card'),
+            data.get('pan_card'),
+            data.get('address')
+        ))
+        investor_id = cursor.lastrowid
+        connection.commit()
+        # return created object
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM investors WHERE id = %s", (investor_id,))
+        new_inv = cursor.fetchone()
+        return jsonify(new_inv), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'connection' in locals() and connection:
+            connection.close()
+
+
+@app.route('/api/investors/<int:investor_id>', methods=['PUT'])
+@token_required
+def update_investor(current_user, investor_id):
+    try:
+        data = request.get_json() or {}
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        # build update
+        updates = []
+        params = []
+        for field in ['investor_name', 'investment_amount', 'investment_percentage', 'mobile', 'email', 'aadhar_card', 'pan_card', 'address', 'deal_id']:
+            if field in data:
+                updates.append(f"{field} = %s")
+                params.append(data.get(field))
+        if not updates:
+            return jsonify({'error': 'nothing to update'}), 400
+        params.append(investor_id)
+        sql = 'UPDATE investors SET ' + ', '.join(updates) + ' WHERE id = %s'
+        cursor.execute(sql, tuple(params))
+        connection.commit()
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM investors WHERE id = %s", (investor_id,))
+        updated = cursor.fetchone()
+        return jsonify(updated)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'connection' in locals() and connection:
+            connection.close()
+
+
+@app.route('/api/investors/<int:investor_id>', methods=['DELETE'])
+@token_required
+def delete_investor(current_user, investor_id):
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("DELETE FROM investors WHERE id = %s", (investor_id,))
+        connection.commit()
+        return jsonify({'message': 'Investor deleted'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'connection' in locals() and connection:
+            connection.close()
+
+
 @app.route('/api/admin/users', methods=['POST'])
 @token_required
 def admin_create_user(current_user):
