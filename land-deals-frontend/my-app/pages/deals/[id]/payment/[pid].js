@@ -1,5 +1,6 @@
+/* eslint-disable @next/next/no-img-element */
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Navbar from '../../../../components/layout/Navbar'
 import { paymentsAPI } from '../../../../lib/api'
 import toast from 'react-hot-toast'
@@ -11,15 +12,11 @@ export default function PaymentDetailPage() {
   const [proofs, setProofs] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
-  const [failedImages, setFailedImages] = useState(new Set())
+  // track failed images (used to fallback to icon) - used to toggle a CSS class when an image fails
+  const [failedImages, setFailedImages] = useState(new Set()) // kept for potential future use
   const [selectedDocType, setSelectedDocType] = useState('receipt')
 
-  useEffect(() => {
-    if (!id || !pid) return
-    fetchData()
-  }, [id, pid])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true)
     try {
       const res = await paymentsAPI.list(id)
@@ -27,12 +24,17 @@ export default function PaymentDetailPage() {
       setPayment(pay)
       const pr = await paymentsAPI.listProofs(id, pid)
       setProofs(pr.data || [])
-    } catch (e) {
+    } catch {
       toast.error('Failed to load')
     } finally {
       setLoading(false)
     }
-  }
+  }, [id, pid])
+
+  useEffect(() => {
+    if (!id || !pid) return
+    fetchData()
+  }, [id, pid, fetchData])
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -47,13 +49,12 @@ export default function PaymentDetailPage() {
       // reset failed image set in case this upload fixes rendering issues
       setFailedImages(new Set())
       fetchData()
-    } catch (err) {
+    } catch {
       toast.error('Upload failed')
-    }
-    finally {
+    } finally {
       setUploading(false)
       // clear the file input value so the same file can be re-selected
-      try { e.target.value = null } catch (e) {}
+      try { e.target.value = null } catch {}
     }
   }
 
@@ -63,7 +64,7 @@ export default function PaymentDetailPage() {
       await paymentsAPI.deleteProof(id, pid, proofId)
       toast.success('Deleted')
       fetchData()
-    } catch (err) {
+    } catch {
       toast.error('Delete failed')
     }
   }
@@ -118,23 +119,25 @@ export default function PaymentDetailPage() {
                         <div className="md:flex-1">
                           <p className="text-sm text-slate-600">Uploaded by #{pr.uploaded_by} • {new Date(pr.uploaded_at).toLocaleString()}</p>
                           <div className="mt-3 bg-slate-50 rounded overflow-hidden border">
-                            {pr.file_path && pr.file_path.endsWith('.pdf') ? (
+                                    {pr.file_path && pr.file_path.endsWith('.pdf') ? ( 
                               <object data={pr.url} type="application/pdf" width="100%" height="500">PDF preview not available</object>
                             ) : (
-                              <img
-                                src={pr.url}
-                                alt={pr.file_path || 'proof'}
-                                className="w-full max-h-[560px] object-contain bg-white"
-                                onError={(e) => {
-                                  try { e.currentTarget.onerror = null } catch (e) {}
-                                  e.currentTarget.src = '/file.svg'
-                                  setFailedImages(prev => {
-                                    const s = new Set(prev)
-                                    s.add(pr.id)
-                                    return s
-                                  })
-                                }}
-                              />
+                                      <img
+                                        src={pr.url}
+                                        alt={pr.file_path || 'proof'}
+                                        className={`w-full max-h-[560px] object-contain bg-white ${failedImages.has(pr.id) ? 'opacity-60' : ''}`}
+                                        onError={() => {
+                                          try { /* silence */ } catch {}
+                                          // replace broken image with generic icon
+                                          const img = document.querySelector(`img[alt="${pr.file_path || 'proof'}"]`)
+                                          if (img) img.src = '/file.svg'
+                                          setFailedImages(prev => {
+                                            const s = new Set(prev)
+                                            s.add(pr.id)
+                                            return s
+                                          })
+                                        }}
+                                      />
                             )}
                           </div>
                           <div className="mt-2 text-sm text-slate-600">{(pr.file_path || pr.url || '').split('/').pop()}</div>

@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { paymentsAPI } from '../../lib/api'
 import { getToken } from '../../lib/auth'
 import toast from 'react-hot-toast'
@@ -19,22 +19,22 @@ export default function PaymentsPage() {
 
   const isAuthed = mounted && !!getToken()
 
-  const fetchPayments = async () => {
+  const fetchPayments = useCallback(async () => {
     setLoading(true)
     try {
       const res = await paymentsAPI.list(id)
       setPayments(res.data || [])
-    } catch (e) {
+    } catch {
       toast.error('Failed to load payments')
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
 
   useEffect(() => {
     if (!id) return
     fetchPayments()
-  }, [id])
+  }, [id, fetchPayments])
 
   const getParticipantLabel = (pt) => {
     if (!pt) return ''
@@ -50,7 +50,7 @@ export default function PaymentsPage() {
       await paymentsAPI.update(id, paymentId, { notes })
       toast.success('Notes updated')
       fetchPayments()
-    } catch (e) {
+    } catch {
       toast.error('Failed to update payment')
     }
   }
@@ -64,7 +64,7 @@ export default function PaymentsPage() {
       await paymentsAPI.uploadProof(id, paymentId, fd)
       toast.success('Proof uploaded')
       fetchPayments()
-    } catch (e) {
+    } catch {
       toast.error('Upload failed')
     } finally {
       setUploading(false)
@@ -77,7 +77,7 @@ export default function PaymentsPage() {
       if (id) filters.deal_id = id
       const res = await paymentsAPI.ledger(filters)
       setLedgerResults(res.data || [])
-    } catch (e) {
+    } catch {
       toast.error('Ledger query failed')
     }
   }
@@ -140,9 +140,8 @@ export default function PaymentsPage() {
       a.remove()
       window.URL.revokeObjectURL(url)
     } catch (err) {
-  console.error('Failed to download server PDF', err)
-  const msg = err?.response?.data?.error || err?.response?.data || err?.message || 'Failed to download server PDF'
-  toast.error(msg)
+      console.error('Failed to download server PDF', err)
+      toast.error('Failed to download server PDF')
     }
   }
 
@@ -268,7 +267,7 @@ export default function PaymentsPage() {
                             await paymentsAPI.delete(id, p.id)
                             toast.success('Deleted')
                             fetchPayments()
-                          } catch (e) {
+                          } catch {
                             toast.error('Delete failed')
                           }
                         }} className="w-full inline-flex justify-center rounded-md bg-white px-3 py-1 text-sm font-medium text-red-600 ring-1 ring-inset ring-slate-200 hover:bg-red-50">Delete</button>

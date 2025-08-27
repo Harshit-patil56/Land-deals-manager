@@ -35,7 +35,7 @@ export default function DealDetails() {
         setMutationDone(data.deal?.mutation_done || false)
         setProfitAllocation(data.deal?.profit_allocation || '')
         setStatus(data.deal?.status || '')
-      } catch (error) {
+      } catch {
         toast.error('Failed to fetch deal details')
       } finally {
         setLoading(false)
@@ -81,12 +81,10 @@ export default function DealDetails() {
             <h1 className="text-2xl font-bold text-gray-900">Deal Details</h1>
             <p className="text-sm text-gray-600 mt-1">Complete information for {deal.project_name}</p>
           </div>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-          >
-            Back to Dashboard
-          </button>
+          <div className="flex gap-3">
+            <button onClick={() => router.push('/dashboard')} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium">Back to Dashboard</button>
+            <button onClick={() => router.push(`/deals/payments?id=${id}`)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium">Payments</button>
+          </div>
         </div>
       </div>
 
@@ -272,7 +270,7 @@ export default function DealDetails() {
                         <tr key={inv.id || index} className="border-b border-gray-100">
                           <td className="py-3 px-4 text-sm text-gray-900">{inv.investor_name || '-'}</td>
                           <td className="py-3 px-4 text-sm text-gray-900">₹{inv.investment_amount?.toLocaleString() || '-'}</td>
-                          <td className="py-3 px-4 text-sm text-gray-900">{inv.investment_percentage}% || '-'</td>
+                          <td className="py-3 px-4 text-sm text-gray-900">{inv.investment_percentage ? `${inv.investment_percentage}%` : '-'}</td>
                           <td className="py-3 px-4 text-sm text-gray-900">{inv.phone || '-'}</td>
                           <td className="py-3 px-4 text-sm text-gray-900">{inv.email || '-'}</td>
                           <td className="py-3 px-4 text-sm text-gray-900">{inv.aadhar_card || '-'}</td>

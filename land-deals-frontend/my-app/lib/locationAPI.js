@@ -188,7 +188,7 @@ export const fetchDistricts = async (stateId, stateName) => {
 /**
  * Fetch talukas - simplified since we now use text input
  */
-export const fetchTalukas = async (districtName, stateName) => {
+export const fetchTalukas = async () => {
   // Return empty array since we're using text input now
   console.log('Talukas are now text input - no API call needed');
   return [];
@@ -197,7 +197,7 @@ export const fetchTalukas = async (districtName, stateName) => {
 /**
  * Fetch villages - simplified since we now use text input
  */
-export const fetchVillages = async (talukaName, districtName, stateName) => {
+export const fetchVillages = async () => {
   // Return empty array since we're using text input now
   console.log('Villages are now text input - no API call needed');
   return [];
@@ -206,7 +206,7 @@ export const fetchVillages = async (talukaName, districtName, stateName) => {
 /**
  * Search villages - simplified since we now use text input
  */
-export const searchVillages = async (query, talukaName, districtName, stateName) => {
+export const searchVillages = async () => {
   // Return empty array since we're using text input now
   console.log('Villages are now text input - no API call needed');
   return [];

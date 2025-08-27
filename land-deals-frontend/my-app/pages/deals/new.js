@@ -51,12 +51,13 @@ export default function NewDeal() {
   const [existingOwnerDocuments, setExistingOwnerDocuments] = useState({});
   const [missingDocuments, setMissingDocuments] = useState({});
   
-  // Initialize owner documents when owners array changes
+  // Initialize owner documents when owners array changes.
+  // Use functional update and depend only on form.owners to avoid update loops.
   useEffect(() => {
-    const newOwnerDocuments = {};
-    form.owners.forEach((_, index) => {
-      if (!ownerDocuments[index]) {
-        newOwnerDocuments[index] = {
+    setOwnerDocuments(prev => {
+      const next = {}
+      form.owners.forEach((_, index) => {
+        next[index] = prev && prev[index] ? prev[index] : {
           identity_proof: [],
           address_proof: [],
           photograph: [],
@@ -66,13 +67,15 @@ export default function NewDeal() {
           noc_co_owners: [],
           noc_society: [],
           affidavit_no_dispute: []
-        };
-      } else {
-        newOwnerDocuments[index] = ownerDocuments[index];
-      }
-    });
-    setOwnerDocuments(newOwnerDocuments);
-  }, [form.owners.length]);
+        }
+      })
+      // quick shallow equality: same keys => keep prev to avoid re-renders
+      const prevKeys = prev ? Object.keys(prev) : []
+      const nextKeys = Object.keys(next)
+      const same = prev && prevKeys.length === nextKeys.length && nextKeys.every(k => prev.hasOwnProperty(k))
+      return same ? prev : next
+    })
+  }, [form.owners])
   
   // Existing owners functionality
   const [existingOwners, setExistingOwners] = useState([]);
@@ -204,7 +207,7 @@ export default function NewDeal() {
     try {
       const states = await locationAPI.fetchStates();
       setLocationData(prev => ({ ...prev, states }));
-    } catch (error) {
+    } catch {
       toast.error('Failed to load states');
     } finally {
       setLocationLoading(prev => ({ ...prev, states: false }));
@@ -216,7 +219,7 @@ export default function NewDeal() {
     try {
       const districts = await locationAPI.fetchDistricts(stateId, stateName);
       setLocationData(prev => ({ ...prev, districts, talukas: [], villages: [] }));
-    } catch (error) {
+    } catch {
       toast.error('Failed to load districts');
     } finally {
       setLocationLoading(prev => ({ ...prev, districts: false }));
@@ -228,7 +231,7 @@ export default function NewDeal() {
     try {
       const talukas = await locationAPI.fetchTalukas(districtName, stateName);
       setLocationData(prev => ({ ...prev, talukas, villages: [] }));
-    } catch (error) {
+    } catch {
       toast.error('Failed to load talukas');
     } finally {
       setLocationLoading(prev => ({ ...prev, talukas: false }));
