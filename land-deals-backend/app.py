@@ -935,6 +935,64 @@ def deal_financials(current_user, deal_id):
             conn.close()
 
 
+@app.route('/api/payments/<int:deal_id>/<int:payment_id>', methods=['GET'])
+def get_payment_detail(deal_id, payment_id):
+    """Get detailed information for a specific payment including parties and proofs"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get payment basic info
+        cursor.execute("SELECT * FROM payments WHERE deal_id = %s AND id = %s", (deal_id, payment_id))
+        payment = cursor.fetchone()
+        
+        if not payment:
+            return jsonify({'error': 'Payment not found'}), 404
+        
+        # Convert dates to isoformat
+        for k in ('payment_date', 'created_at'):
+            if payment.get(k) is not None and isinstance(payment.get(k), datetime):
+                payment[k] = payment[k].isoformat()
+        
+        # Get payment parties
+        cursor.execute("SELECT id, party_type, party_id, amount, percentage FROM payment_parties WHERE payment_id = %s", (payment_id,))
+        parties = cursor.fetchall() or []
+        party_list = []
+        for p in parties:
+            party_list.append({
+                'id': p.get('id'),
+                'party_type': p.get('party_type'),
+                'party_id': p.get('party_id'),
+                'amount': float(p.get('amount')) if p.get('amount') is not None else None,
+                'percentage': float(p.get('percentage')) if p.get('percentage') is not None else None
+            })
+        payment['parties'] = party_list
+        
+        # Get payment proofs
+        cursor.execute("SELECT id, file_path, uploaded_by, uploaded_at, doc_type FROM payment_proofs WHERE payment_id = %s ORDER BY uploaded_at DESC", (payment_id,))
+        proofs = cursor.fetchall() or []
+        proof_list = []
+        for proof in proofs:
+            proof_data = {
+                'id': proof.get('id'),
+                'file_path': proof.get('file_path'),
+                'uploaded_by': proof.get('uploaded_by'),
+                'doc_type': proof.get('doc_type')
+            }
+            if proof.get('uploaded_at') and isinstance(proof.get('uploaded_at'), datetime):
+                proof_data['uploaded_at'] = proof.get('uploaded_at').isoformat()
+            proof_list.append(proof_data)
+        payment['proofs'] = proof_list
+        
+        return jsonify(payment)
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
 @app.route('/api/payments/<int:deal_id>/<int:payment_id>/proofs/<int:proof_id>', methods=['DELETE'])
 @token_required
 def delete_proof(current_user, deal_id, payment_id, proof_id):

@@ -28,6 +28,22 @@ export const dealAPI = {
   delete: (id) => api.delete(`/deals/${id}`)
 }
 
+export const investorsAPI = {
+  getAll: () => api.get('/investors'),
+  getById: (id) => api.get(`/investors/${id}`),
+  create: (data) => api.post('/investors', data),
+  update: (id, data) => api.put(`/investors/${id}`, data),
+  delete: (id) => api.delete(`/investors/${id}`)
+}
+
+export const ownersAPI = {
+  getAll: () => api.get('/owners'),
+  getById: (id) => api.get(`/owners/${id}`),
+  create: (data) => api.post('/owners', data),
+  update: (id, data) => api.put(`/owners/${id}`, data),
+  delete: (id) => api.delete(`/owners/${id}`)
+}
+
 export const paymentsAPI = {
   list: (dealId) => api.get(`/payments/${dealId}`),
   // create accepts optional options object: { params: { force: true } }

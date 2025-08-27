@@ -116,3 +116,30 @@ CREATE TABLE IF NOT EXISTS payments (
 -- Indexes for quick lookups
 CREATE INDEX IF NOT EXISTS idx_payments_deal_id ON payments(deal_id);
 CREATE INDEX IF NOT EXISTS idx_payments_party ON payments(party_type, party_id);
+
+-- Add payment_parties table for multi-party payments
+CREATE TABLE IF NOT EXISTS payment_parties (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    payment_id INT NOT NULL,
+    party_type ENUM('owner','buyer','investor','other') DEFAULT 'other',
+    party_id INT DEFAULT NULL,
+    amount DECIMAL(15,2),
+    percentage DECIMAL(5,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE CASCADE
+);
+
+-- Add payment_proofs table for storing proof documents
+CREATE TABLE IF NOT EXISTS payment_proofs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    payment_id INT NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    uploaded_by INT,
+    doc_type VARCHAR(50),
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE CASCADE
+);
+
+-- Create indexes for performance
+CREATE INDEX IF NOT EXISTS idx_payment_parties_payment_id ON payment_parties(payment_id);
+CREATE INDEX IF NOT EXISTS idx_payment_proofs_payment_id ON payment_proofs(payment_id);

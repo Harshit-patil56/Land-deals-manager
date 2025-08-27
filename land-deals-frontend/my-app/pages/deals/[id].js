@@ -3,6 +3,8 @@ import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { dealAPI } from '../../lib/api'
 import { getUser, logout } from '../../lib/auth'
+import { hasPermission, PERMISSIONS } from '../../lib/permissions'
+import { EditButton, DeleteButton } from '../../components/common/PermissionButton'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import Navbar from '../../components/layout/Navbar'
@@ -139,6 +141,38 @@ export default function DealDetails() {
               >
                 {status === 'open' ? 'Active Deal' : 'Closed Deal'}
               </span>
+              <EditButton
+                user={user}
+                resource="deals"
+                onClick={() => router.push(`/deals/edit/${id}`)}
+                className="inline-flex items-center px-4 py-2 border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-all duration-200 font-semibold rounded-lg"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit Deal
+              </EditButton>
+              <DeleteButton
+                user={user}
+                resource="deals"
+                onClick={async () => {
+                  if (window.confirm('Are you sure you want to delete this deal? This action cannot be undone.')) {
+                    try {
+                      await dealAPI.delete(id)
+                      toast.success('Deal deleted successfully')
+                      router.push('/deals/deals')
+                    } catch {
+                      toast.error('Failed to delete deal')
+                    }
+                  }
+                }}
+                className="inline-flex items-center px-4 py-2 border border-red-300 text-red-700 bg-red-50 hover:bg-red-100 transition-all duration-200 font-semibold rounded-lg"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete Deal
+              </DeleteButton>
               <Link href="/dashboard">
                 <span className="inline-flex items-center px-4 py-2 border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-all duration-200 font-semibold cursor-pointer rounded-lg">
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -149,13 +183,43 @@ export default function DealDetails() {
               </Link>
             </div>
           </div>
-<<<<<<< Updated upstream
-          <div className="flex gap-3">
-            <button onClick={() => router.push('/dashboard')} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium">Back to Dashboard</button>
-            <button onClick={() => router.push(`/deals/payments?id=${id}`)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium">Payments</button>
+        </div>
+      </div>
+
+      {/* Payment Actions - Prominent Top Section */}
+      <div className="w-full">
+        <div className="px-6 pb-8">
+          <div className="bg-gradient-to-r from-blue-50 to-emerald-50 rounded-xl border border-slate-200 shadow-sm">
+            <div className="px-8 py-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 mb-2">Payment Management</h2>
+                  <p className="text-slate-600">Manage payments for this deal quickly and efficiently</p>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={() => router.push(`/deals/payments?id=${id}`)}
+                    className="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105"
+                  >
+                    <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    View Payments
+                  </button>
+                    <button
+                      onClick={() => router.push(`/deals/${id}/add-payment`)}
+                      className="inline-flex items-center px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105"
+                    >
+                      <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Add Payment
+                    </button>
+                </div>
+              </div>
+            </div>
           </div>
-=======
->>>>>>> Stashed changes
         </div>
       </div>
 
@@ -342,44 +406,6 @@ export default function DealDetails() {
               </div>
             </section>
 
-<<<<<<< Updated upstream
-          {/* Investors */}
-          <section className="bg-white rounded-lg border border-gray-200">
-            <div className="border-b border-gray-200 px-6 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">Investors</h2>
-            </div>
-            <div className="p-6">
-              {investors.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">No investors information available</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border border-gray-200">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
-                        <th className="text-left py-3 px-4 font-medium text-gray-700 text-sm">Name</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700 text-sm">Amount</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700 text-sm">Percentage</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700 text-sm">Phone</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700 text-sm">Email</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700 text-sm">Aadhar Card</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700 text-sm">PAN Card</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {investors.map((inv, index) => (
-                        <tr key={inv.id || index} className="border-b border-gray-100">
-                          <td className="py-3 px-4 text-sm text-gray-900">{inv.investor_name || '-'}</td>
-                          <td className="py-3 px-4 text-sm text-gray-900">₹{inv.investment_amount?.toLocaleString() || '-'}</td>
-                          <td className="py-3 px-4 text-sm text-gray-900">{inv.investment_percentage ? `${inv.investment_percentage}%` : '-'}</td>
-                          <td className="py-3 px-4 text-sm text-gray-900">{inv.phone || '-'}</td>
-                          <td className="py-3 px-4 text-sm text-gray-900">{inv.email || '-'}</td>
-                          <td className="py-3 px-4 text-sm text-gray-900">{inv.aadhar_card || '-'}</td>
-                          <td className="py-3 px-4 text-sm text-gray-900">{inv.pan_card || '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-=======
             {/* Financial Information */}
             <section id="financial-info" className="bg-white rounded-lg shadow-sm border border-slate-200">
               <div className="px-6 py-5 border-b border-slate-200 bg-emerald-50">
@@ -388,7 +414,6 @@ export default function DealDetails() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                   </svg>
                   <h2 className="text-xl font-semibold text-slate-900">Financial Information</h2>
->>>>>>> Stashed changes
                 </div>
               </div>
               <div className="p-6">

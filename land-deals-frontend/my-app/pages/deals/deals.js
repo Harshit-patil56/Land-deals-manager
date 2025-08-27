@@ -3,6 +3,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import { getUser, logout, isAuthenticated } from '../../lib/auth'
 import { dealAPI } from '../../lib/api'
+import { hasPermission, PERMISSIONS } from '../../lib/permissions'
+import { CreateButton, EditButton, DeleteButton } from '../../components/common/PermissionButton'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import Navbar from '../../components/layout/Navbar'
@@ -89,6 +91,17 @@ export default function DealsPage() {
                   {deals.length} deal{deals.length !== 1 ? 's' : ''} found
                 </span>
               </div>
+              <CreateButton
+                user={user}
+                resource="deals"
+                onClick={() => router.push('/deals/new')}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-slate-900 hover:bg-slate-800 transition-colors"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                New Deal
+              </CreateButton>
               <Link href="/dashboard">
                 <span className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 cursor-pointer transition-colors">
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -113,14 +126,17 @@ export default function DealsPage() {
             </div>
             <h3 className="text-xl font-semibold text-slate-900 mb-3">No deals found</h3>
             <p className="text-slate-600 mb-8">Get started by creating your first property deal to begin tracking your transactions.</p>
-            <Link href="/deals/new">
-              <span className="inline-flex items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 cursor-pointer transition-colors">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                Create New Deal
-              </span>
-            </Link>
+            <CreateButton
+              user={user}
+              resource="deals"
+              onClick={() => router.push('/deals/new')}
+              className="inline-flex items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 transition-colors"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Create New Deal
+            </CreateButton>
           </div>
         ) : (
           <div className="space-y-6">
@@ -320,21 +336,24 @@ export default function DealsPage() {
                       )}
                     </div>
                     <div className="flex items-center space-x-3">
-                      <button
-                        className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 rounded-md transition-all duration-200 inline-flex items-center border border-blue-200 hover:border-blue-300"
-                        onClick={async (e) => {
+                      <EditButton
+                        user={user}
+                        resource="deals"
+                        onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
                           router.push(`/deals/edit/${deal.id}`)
                         }}
+                        className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 rounded-md transition-all duration-200 inline-flex items-center border border-blue-200 hover:border-blue-300"
                       >
                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
                         Edit Deal
-                      </button>
-                      <button
-                        className="text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50 px-4 py-2 rounded-md transition-all duration-200 inline-flex items-center border border-red-200 hover:border-red-300"
+                      </EditButton>
+                      <DeleteButton
+                        user={user}
+                        resource="deals"
                         onClick={async (e) => {
                           e.preventDefault()
                           e.stopPropagation()
@@ -348,12 +367,13 @@ export default function DealsPage() {
                             }
                           }
                         }}
+                        className="text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50 px-4 py-2 rounded-md transition-all duration-200 inline-flex items-center border border-red-200 hover:border-red-300"
                       >
                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                         Delete Deal
-                      </button>
+                      </DeleteButton>
                     </div>
                   </div>
                 </div>

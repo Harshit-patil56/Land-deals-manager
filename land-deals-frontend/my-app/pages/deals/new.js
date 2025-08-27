@@ -1,7 +1,7 @@
 // --- All imports remain untouched ---
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { dealAPI } from '../../lib/api';
+import { dealAPI, investorsAPI, ownersAPI } from '../../lib/api';
 import api from '../../lib/api';
 import { getUser, getToken } from '../../lib/auth';
 import toast from 'react-hot-toast';
@@ -49,17 +49,12 @@ export default function NewDeal() {
   const [existingOwnerDocuments, setExistingOwnerDocuments] = useState({});
   const [missingDocuments, setMissingDocuments] = useState({});
   
-<<<<<<< Updated upstream
-  // Initialize owner documents when owners array changes.
-  // Use functional update and depend only on form.owners to avoid update loops.
-=======
   // Investor documents state
   const [investorDocuments, setInvestorDocuments] = useState({});
   const [existingInvestorDocuments, setExistingInvestorDocuments] = useState({});
   const [investorMissingDocuments, setInvestorMissingDocuments] = useState({});
   
   // Initialize owner documents when owners array changes
->>>>>>> Stashed changes
   useEffect(() => {
     setOwnerDocuments(prev => {
       const next = {}
@@ -149,8 +144,8 @@ export default function NewDeal() {
   // Fetch existing owners
   const fetchExistingOwners = async () => {
     try {
-      // Create a simple API call to get owners using axios with proper auth
-      const response = await api.get('/owners');
+      // Create a simple API call to get owners using proper API method
+      const response = await ownersAPI.getAll();
       setExistingOwners(response.data);
     } catch (error) {
       console.error('Failed to fetch existing owners:', error);
@@ -171,8 +166,9 @@ export default function NewDeal() {
   // Fetch existing investors
   const fetchExistingInvestors = async () => {
     try {
-      const response = await api.get('/investors');
-      setExistingInvestors(response.data);
+      // For now, investors are deal-specific, so we'll start with empty array
+      // In the future, this could be implemented as a separate API endpoint
+      setExistingInvestors([]);
     } catch (error) {
       console.error('Failed to fetch existing investors:', error);
     }

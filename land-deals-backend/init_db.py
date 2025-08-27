@@ -15,7 +15,7 @@ DB_CONFIG = {
     'port': 17231,
     'user': 'avnadmin',
     'password': os.environ.get('DB_PASSWORD', 'YOUR_PASSWORD'),
-    'database': 'defaultdb',
+    'database': 'land_deals_db',
     'ssl_ca': os.path.join(os.path.dirname(__file__), 'ca-certificate.pem'),
     'ssl_verify_cert': True,
     'ssl_verify_identity': True
