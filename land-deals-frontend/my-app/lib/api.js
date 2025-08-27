@@ -40,6 +40,14 @@ paymentsAPI.uploadProof = (dealId, paymentId, formData) => api.post(`/payments/$
   headers: { 'Content-Type': 'multipart/form-data' }
 })
 
+// Admin user management
+export const adminAPI = {
+  listUsers: () => api.get('/admin/users'),
+  createUser: (data) => api.post('/admin/users', data),
+  updateUser: (id, data) => api.put(`/admin/users/${id}`, data),
+  deleteUser: (id) => api.delete(`/admin/users/${id}`)
+}
+
 paymentsAPI.listProofs = (dealId, paymentId) => api.get(`/payments/${dealId}/${paymentId}/proofs`)
 paymentsAPI.deleteProof = (dealId, paymentId, proofId) => api.delete(`/payments/${dealId}/${paymentId}/proofs/${proofId}`)
 

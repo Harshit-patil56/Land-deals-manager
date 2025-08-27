@@ -35,7 +35,7 @@ export default function DealDetails() {
         setMutationDone(data.deal?.mutation_done || false)
         setProfitAllocation(data.deal?.profit_allocation || '')
         setStatus(data.deal?.status || '')
-      } catch (error) {
+      } catch {
         toast.error('Failed to fetch deal details')
       } finally {
         setLoading(false)
@@ -270,7 +270,7 @@ export default function DealDetails() {
                         <tr key={inv.id || index} className="border-b border-gray-100">
                           <td className="py-3 px-4 text-sm text-gray-900">{inv.investor_name || '-'}</td>
                           <td className="py-3 px-4 text-sm text-gray-900">₹{inv.investment_amount?.toLocaleString() || '-'}</td>
-                          <td className="py-3 px-4 text-sm text-gray-900">{inv.investment_percentage}% || '-'</td>
+                          <td className="py-3 px-4 text-sm text-gray-900">{inv.investment_percentage ? `${inv.investment_percentage}%` : '-'}</td>
                           <td className="py-3 px-4 text-sm text-gray-900">{inv.phone || '-'}</td>
                           <td className="py-3 px-4 text-sm text-gray-900">{inv.email || '-'}</td>
                           <td className="py-3 px-4 text-sm text-gray-900">{inv.aadhar_card || '-'}</td>

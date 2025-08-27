@@ -38,7 +38,7 @@ export default function AddPaymentPage() {
         const investorRows = investors.map(i => ({ party_type: 'investor', id: i.id, name: i.investor_name || '', role: 'investor' }))
         const buyerRows = buyers.map(b => ({ party_type: 'buyer', id: b.id, name: b.name || '', role: 'buyer' }))
         setParticipants([...ownerRows, ...investorRows, ...buyerRows])
-      } catch (e) {
+      } catch {
         // ignore
       }
     })()
@@ -91,9 +91,9 @@ export default function AddPaymentPage() {
     const computed = []
     if (amt > 0) {
       // prepare entries for those with percentage
-      const entries = parties.map((p, idx) => ({ idx, pct: (p.percentage !== '' ? parseFloat(p.percentage) : null) }))
+  const entries = parties.map((p, i) => ({ idx: i, pct: (p.percentage !== '' ? parseFloat(p.percentage) : null) }))
       const percentEntries = entries.filter(e => typeof e.pct === 'number' && !isNaN(e.pct))
-      if (percentEntries.length > 0) {
+  if (percentEntries.length > 0) {
         const amountCents = Math.round(amt * 100)
         // raw cents and fractional remainder for sorting
         const raws = percentEntries.map(e => {
@@ -104,11 +104,11 @@ export default function AddPaymentPage() {
         const sumFloor = raws.reduce((s, r) => s + r.floor, 0)
         let remainder = amountCents - sumFloor
         // distribute remainder by highest fractional rem
-        raws.sort((a, b) => b.rem - a.rem)
+  raws.sort((a, b) => b.rem - a.rem)
         const assigned = {}
         for (let r of raws) assigned[r.idx] = r.floor
-        for (let i = 0; i < remainder; i++) {
-          const target = raws[i % raws.length].idx
+        for (let j = 0; j < remainder; j++) {
+          const target = raws[j % raws.length].idx
           assigned[target] = (assigned[target] || 0) + 1
         }
         // build computed array
@@ -128,7 +128,7 @@ export default function AddPaymentPage() {
     if (n <= 0) return
     const base = Math.floor((100 / n) * 100) / 100
     let remainder = Math.round((100 - base * n) * 100) / 100
-    const next = parties.map((pt, idx) => {
+  const next = parties.map((pt) => {
       let pct = base
       if (remainder > 0) { pct = +(pct + 0.01).toFixed(2); remainder = +(remainder - 0.01).toFixed(2) }
       return { ...pt, percentage: pct.toString(), amount: '' }
@@ -137,7 +137,7 @@ export default function AddPaymentPage() {
   }
 
   const submit = async (e) => {
-    e && e.preventDefault()
+    e?.preventDefault()
     if (saving) return
     if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) { toast.error('Enter a valid amount'); return }
     if (!form.payment_date) { toast.error('Select a payment date'); return }
@@ -147,65 +147,80 @@ export default function AddPaymentPage() {
       const percentProvided = preparedParties.some(p => typeof p.percentage === 'number')
       const amountProvided = preparedParties.some(p => typeof p.amount === 'number')
       const paymentAmount = parseFloat(form.amount || 0)
+
       if (percentProvided) {
         const totalPct = preparedParties.reduce((s, x) => s + (typeof x.percentage === 'number' ? x.percentage : 0), 0)
-        if (Math.abs(totalPct - 100) > 0.01 && !forceSave) { setFieldErrors({ form: 'Party percentage must sum to 100%. Check "Force save" to override.' }); setSaving(false); return }
+        if (Math.abs(totalPct - 100) > 0.01 && !forceSave) {
+          setFieldErrors({ form: 'Party percentage must sum to 100%. Check "Force save" to override.' })
+          return
+        }
       }
+
       let computedParties = preparedParties.map(p => ({ ...p }))
       if (percentProvided && !amountProvided) {
-        computedParties = computedParties.map(p => ({ ...p, amount: (typeof p.percentage === 'number' ? +( (p.percentage/100) * paymentAmount ).toFixed(2) : null) }))
+        computedParties = computedParties.map(p => ({ ...p, amount: (typeof p.percentage === 'number' ? +((p.percentage / 100) * paymentAmount).toFixed(2) : null) }))
       }
+
       if (amountProvided) {
         const totalPartyAmount = computedParties.reduce((s, x) => s + (typeof x.amount === 'number' ? x.amount : 0), 0)
-        if (Math.abs(totalPartyAmount - paymentAmount) > 0.01 && !forceSave) { setFieldErrors({ form: 'Party sums do not match payment amount. Check "Force save" to override or adjust amounts.' }); setSaving(false); return }
+        if (Math.abs(totalPartyAmount - paymentAmount) > 0.01 && !forceSave) {
+          setFieldErrors({ form: 'Party sums do not match payment amount. Check "Force save" to override or adjust amounts.' })
+          return
+        }
       }
+
       setFieldErrors({})
       const params = {}
       if (forceSave) params.force = true
       const payload = { ...form, amount: parseFloat(form.amount), parties: computedParties }
       if ((form.payment_mode === 'other' || !form.payment_mode) && customMode) payload.payment_mode = customMode
+
       const resp = await paymentsAPI.create(id, payload, { params })
       toast.success('Payment recorded')
       const newPaymentId = resp?.data?.payment_id
+
       if (receiptFile && newPaymentId) {
         try {
           const fd = new FormData()
           fd.append('proof', receiptFile)
           await paymentsAPI.uploadProof(id, newPaymentId, fd)
           toast.success('Receipt uploaded')
-        } catch (e) { toast.error('Receipt upload failed') }
+        } catch {
+          toast.error('Receipt upload failed')
+        }
       }
-      // reset
-      setForm({ amount: '', payment_date: '', payment_mode: '', reference: '', notes: '', status: 'paid', due_date: '' })
-      setReceiptFile(null)
-      setCustomMode('')
-      setParties([{ party_type: 'owner', party_id: '', percentage: '', amount: '' }])
-      setForceSave(false)
-      // navigate back to payments list
-      router.push(`/deals/${id}/payments`)
-    } catch (e) {
-      // Try to surface useful server errors to the user so they can fix input or auth
+
+  // reset and navigate back to the payments list page (uses query param `id`)
+  setForm({ amount: '', payment_date: '', payment_mode: '', reference: '', notes: '', status: 'paid', due_date: '' })
+  setReceiptFile(null)
+  setCustomMode('')
+  setParties([{ party_type: 'owner', party_id: '', percentage: '', amount: '' }])
+  setForceSave(false)
+  // Use query-based navigation to match pages/deals/payments.js which expects `id` in router.query
+  router.push({ pathname: '/deals/payments', query: { id } })
+
+      } catch (err) {
       try {
-        const resp = e?.response
-        const err = resp?.data
-        // Specific server-side validation keys
-        if (err && err.error === 'party_amount_mismatch') {
-          toast.error(`Party sum mismatch: payment ${err.payment_amount} vs parties ${err.parties_total}`)
-        } else if (err && err.error === 'party_percentage_mismatch') {
-          toast.error(`Party percentage mismatch: total ${err.total_percentage}`)
+        const resp = err?.response
+        const data = resp?.data
+        if (data && data.error === 'party_amount_mismatch') {
+          toast.error(`Party sum mismatch: payment ${data.payment_amount} vs parties ${data.parties_total}`)
+        } else if (data && data.error === 'party_percentage_mismatch') {
+          toast.error(`Party percentage mismatch: total ${data.total_percentage}`)
         } else if (resp && resp.status) {
-          // Show server-provided message or fallback to status text
-          const msg = (err && (err.error || err.message)) || resp.statusText || `Server error ${resp.status}`
+          const msg = (data && (data.error || data.message)) || resp.statusText || `Server error ${resp.status}`
           toast.error(`${resp.status}: ${msg}`)
-        } else if (e && e.message) {
-          toast.error(e.message)
+        } else if (err && err.message) {
+          toast.error(err.message)
         } else {
           toast.error('Failed to record payment')
         }
-      } catch (_) {
-        toast.error('Failed to record payment')
+      } catch {
+        toast.error('Failed to prepare parties')
       }
-    } finally { setSaving(false) }
+    } finally {
+      setSaving(false)
+    }
   }
 
   const isAuthed = mounted && !!getToken()
@@ -289,7 +304,7 @@ export default function AddPaymentPage() {
                       <div>Party sum: <strong>₹{totalPartiesAmount.toLocaleString()}</strong></div>
                     </div>
                     {computedAmountsPreview && computedAmountsPreview.length > 0 && (
-                      <div className="mb-2 text-sm text-slate-500">Computed amounts from percentages available. Use "Apply computed amounts" to populate party amounts accurately.</div>
+                      <div className="mb-2 text-sm text-slate-500">Computed amounts from percentages available. Use &quot;Apply computed amounts&quot; to populate party amounts accurately.</div>
                     )}
                   {parties.map((pt, idx) => (
                     <div key={`p-${idx}`} className="flex items-center gap-2 p-2 border rounded bg-white">

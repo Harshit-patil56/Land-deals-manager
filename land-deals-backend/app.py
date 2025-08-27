@@ -1046,10 +1046,19 @@ def login():
         stored = user.get('password') if user else None
         ok = False
         if stored:
-            # if stored looks like a hashed password use check_password_hash, otherwise plain compare
-            try:
-                ok = check_password_hash(stored, password)
-            except Exception:
+            # Detect whether the stored value is a password hash (common prefixes or long length)
+            s = str(stored)
+            looks_hashed = False
+            if s.startswith('pbkdf2:') or s.startswith('$2') or s.startswith('sha1$') or len(s) > 20:
+                looks_hashed = True
+
+            if looks_hashed:
+                try:
+                    ok = check_password_hash(stored, password)
+                except Exception:
+                    ok = False
+            else:
+                # stored value is likely plain-text (legacy); compare directly
                 ok = (password == stored)
 
         if user and ok:
@@ -1659,11 +1668,185 @@ def test_db():
             'sample_states': [s['state'] for s in sample_states]
         })
     except Exception as e:
-        return jsonify({'error': f'Database error: {str(e)}'}), 500
+        return jsonify({'error': str(e)}), 500
     finally:
-        if connection:
-            connection.close()
-            connection.close()
+        try:
+            if connection:
+                connection.close()
+        except Exception:
+            pass
+
+
+@app.route('/api/admin/users', methods=['GET'])
+@token_required
+def admin_list_users(current_user):
+    # only allow admin role
+    try:
+        if request.user.get('role') != 'admin':
+            return jsonify({'error': 'Forbidden'}), 403
+    except Exception:
+        return jsonify({'error': 'Forbidden'}), 403
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT id, username, role, full_name FROM users ORDER BY id")
+        rows = cur.fetchall() or []
+        return jsonify(rows)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/admin/users', methods=['POST'])
+@token_required
+def admin_create_user(current_user):
+    try:
+        if request.user.get('role') != 'admin':
+            return jsonify({'error': 'Forbidden'}), 403
+    except Exception:
+        return jsonify({'error': 'Forbidden'}), 403
+
+    data = request.get_json() or {}
+    username = data.get('username')
+    password = data.get('password')
+    role = data.get('role', 'user')
+    full_name = data.get('full_name', '')
+
+    # sanitize role to known allowed values to avoid DB truncation or invalid enum values
+    try:
+        role = (role or 'user').strip().lower()
+    except Exception:
+        role = 'user'
+    allowed_roles = {'user', 'admin', 'auditor'}
+    if role not in allowed_roles:
+        role = 'user'
+
+    # limit lengths to reasonable sizes to avoid column truncation
+    if isinstance(full_name, str):
+        full_name = full_name.strip()[:255]
+    else:
+        full_name = str(full_name)[:255]
+
+    if not username or not password:
+        return jsonify({'error': 'username and password required'}), 400
+
+    # hash password
+    try:
+        hashed = generate_password_hash(password)
+    except Exception:
+        hashed = password
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute('INSERT INTO users (username, password, role, full_name) VALUES (%s, %s, %s, %s)', (username, hashed, role, full_name))
+        conn.commit()
+        return jsonify({'message': 'user created'}), 201
+    except mysql.connector.IntegrityError as e:
+        # duplicate username
+        return jsonify({'error': 'username already exists'}), 400
+    except mysql.connector.DataError as e:
+        # catch truncation / data errors and return helpful message
+        return jsonify({'error': 'Invalid input: data too long or malformed'}), 400
+    except Exception as e:
+        # MySQL sometimes reports truncation as general errors — attempt to surface clearer message
+        msg = str(e)
+        if 'Data truncated for column' in msg or '1265' in msg:
+            return jsonify({'error': 'Invalid input: role or other field truncated'}), 400
+        return jsonify({'error': msg}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/admin/users/<int:user_id>', methods=['PUT'])
+@token_required
+def admin_update_user(current_user, user_id):
+    try:
+        if request.user.get('role') != 'admin':
+            return jsonify({'error': 'Forbidden'}), 403
+    except Exception:
+        return jsonify({'error': 'Forbidden'}), 403
+
+    data = request.get_json() or {}
+    role = data.get('role')
+    full_name = data.get('full_name')
+    password = data.get('password')
+
+    updates = []
+    params = []
+    if role is not None:
+        # sanitize incoming role
+        try:
+            r = (role or '').strip().lower()
+        except Exception:
+            r = 'user'
+        if r not in {'user', 'admin', 'auditor'}:
+            r = 'user'
+        updates.append('role = %s')
+        params.append(r)
+    if full_name is not None:
+        if isinstance(full_name, str):
+            fn = full_name.strip()[:255]
+        else:
+            fn = str(full_name)[:255]
+        updates.append('full_name = %s')
+        params.append(fn)
+    if password is not None:
+        try:
+            hashed = generate_password_hash(password)
+        except Exception:
+            hashed = password
+        updates.append('password = %s')
+        params.append(hashed)
+
+    if not updates:
+        return jsonify({'error': 'nothing to update'}), 400
+
+    params.append(user_id)
+    sql = 'UPDATE users SET ' + ', '.join(updates) + ' WHERE id = %s'
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(sql, tuple(params))
+        conn.commit()
+        return jsonify({'message': 'user updated'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+@token_required
+def admin_delete_user(current_user, user_id):
+    try:
+        if request.user.get('role') != 'admin':
+            return jsonify({'error': 'Forbidden'}), 403
+    except Exception:
+        return jsonify({'error': 'Forbidden'}), 403
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute('DELETE FROM users WHERE id = %s', (user_id,))
+        conn.commit()
+        return jsonify({'message': 'user deleted'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+    
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

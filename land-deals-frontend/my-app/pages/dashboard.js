@@ -1,5 +1,5 @@
 // pages/dashboard.js - Full Width Professional Dashboard with Fixed Icons
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import { getUser, logout, isAuthenticated } from '../lib/auth'
 import { dealAPI } from '../lib/api'
@@ -13,22 +13,12 @@ export default function Dashboard() {
   const [deals, setDeals] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      router.push('/login')
-      return
-    }
-
-    setUser(getUser())
-    fetchDeals()
-  }, [])
-
-  const fetchDeals = async () => {
+  const fetchDeals = useCallback(async () => {
     try {
       const response = await dealAPI.getAll()
       setDeals(response.data)
-    } catch (error) {
-      if (error.response?.status === 401) {
+    } catch {
+      if (_error?.response?.status === 401) {
         toast.error('Session expired. Please login again.')
         logout()
         router.push('/login')
@@ -38,7 +28,17 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [router])
+
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.push('/login')
+      return
+    }
+
+    setUser(getUser())
+    fetchDeals()
+  }, [fetchDeals, router])
 
   const handleLogout = () => {
     logout()
@@ -310,7 +310,7 @@ export default function Dashboard() {
                                     await dealAPI.delete(deal.id)
                                     toast.success('Deal deleted successfully')
                                     setDeals(deals.filter(d => d.id !== deal.id))
-                                  } catch (err) {
+                                  } catch {
                                     toast.error('Failed to delete deal')
                                   }
                                 }

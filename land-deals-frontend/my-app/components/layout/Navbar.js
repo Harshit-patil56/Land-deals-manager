@@ -49,9 +49,18 @@ export default function Navbar({ user, onLogout }) {
                 </span>
               </div>
               <div className="text-left">
-                <span className="text-slate-900 font-semibold text-sm block">
-                  {user?.full_name || user?.name || "User"}
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-slate-900 font-semibold text-sm block">
+                    {user?.full_name || user?.name || "User"}
+                  </span>
+                  {user?.role === 'admin' && (
+                    <Link href="/admin/users" aria-label="Open admin user management">
+                      <span className="text-[11px] leading-4 bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full font-medium cursor-pointer">
+                        Admin
+                      </span>
+                    </Link>
+                  )}
+                </div>
                 <p className="text-xs text-slate-500 capitalize">
                   {user?.role || "Member"}
                 </p>
@@ -95,9 +104,18 @@ export default function Navbar({ user, onLogout }) {
                 </span>
               </div>
               <div>
-                <span className="text-slate-900 font-semibold text-base block">
-                  {user?.full_name || user?.name || "User"}
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-slate-900 font-semibold text-base block">
+                    {user?.full_name || user?.name || "User"}
+                  </span>
+                  {user?.role === 'admin' && (
+                    <Link href="/admin/users" aria-label="Open admin user management">
+                      <span className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full font-medium cursor-pointer">
+                        Admin
+                      </span>
+                    </Link>
+                  )}
+                </div>
                 <p className="text-sm text-slate-600 capitalize">
                   {user?.role || "Member"}
                 </p>
@@ -159,6 +177,7 @@ export default function Navbar({ user, onLogout }) {
                 <User className="w-5 h-5 mr-3 text-slate-500" />
                 Profile
               </Link>
+              {/* Admin access is shown as a thin badge next to the user info above */}
             </div>
 
             {/* Logout button for mobile */}
