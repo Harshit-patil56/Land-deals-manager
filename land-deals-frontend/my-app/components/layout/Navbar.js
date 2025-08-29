@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Menu, X, User, LogOut } from "lucide-react";
+import { hasPermission, PERMISSIONS } from "../../lib/permissions";
 
 export default function Navbar({ user, onLogout }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -41,7 +42,7 @@ export default function Navbar({ user, onLogout }) {
             <Link href="/analytics" className="text-slate-700 hover:text-slate-900 font-medium transition-colors duration-200">
               Analytics
             </Link>
-            {user?.role === 'admin' && (
+            {hasPermission(user, PERMISSIONS.ADMIN_ACCESS) && (
               <Link href="/admin/users" className="text-red-700 hover:text-red-900 font-medium transition-colors duration-200 flex items-center space-x-1">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -65,7 +66,7 @@ export default function Navbar({ user, onLogout }) {
                   <span className="text-slate-900 font-semibold text-sm block">
                     {user?.full_name || user?.name || "User"}
                   </span>
-                  {user?.role === 'admin' && (
+                  {hasPermission(user, PERMISSIONS.ADMIN_ACCESS) && (
                     <Link href="/admin/users" aria-label="Open admin user management">
                       <span className="text-[11px] leading-4 bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full font-medium cursor-pointer">
                         Admin
@@ -120,7 +121,7 @@ export default function Navbar({ user, onLogout }) {
                   <span className="text-slate-900 font-semibold text-base block">
                     {user?.full_name || user?.name || "User"}
                   </span>
-                  {user?.role === 'admin' && (
+                  {hasPermission(user, PERMISSIONS.ADMIN_ACCESS) && (
                     <Link href="/admin/users" aria-label="Open admin user management">
                       <span className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full font-medium cursor-pointer">
                         Admin
@@ -192,7 +193,7 @@ export default function Navbar({ user, onLogout }) {
                 Analytics
               </Link>
               
-              {user?.role === 'admin' && (
+              {hasPermission(user, PERMISSIONS.ADMIN_ACCESS) && (
                 <Link 
                   href="/admin/users" 
                   className="flex items-center px-4 py-3 text-red-700 hover:text-red-900 hover:bg-red-50 rounded-lg transition-all duration-200 font-medium"
