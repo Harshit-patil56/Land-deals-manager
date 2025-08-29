@@ -19,13 +19,14 @@ export default function PaymentDetailPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await paymentsAPI.list(id)
-      const pay = (res.data || []).find(p => String(p.id) === String(pid))
-      setPayment(pay)
-      const pr = await paymentsAPI.listProofs(id, pid)
-      setProofs(pr.data || [])
+      // Use the detailed payment endpoint instead of filtering from list
+      const paymentRes = await paymentsAPI.detail(id, pid)
+      setPayment(paymentRes.data)
+      
+      const proofsRes = await paymentsAPI.listProofs(id, pid)
+      setProofs(proofsRes.data || [])
     } catch {
-      toast.error('Failed to load')
+      toast.error('Failed to load payment details')
     } finally {
       setLoading(false)
     }
@@ -97,9 +98,31 @@ export default function PaymentDetailPage() {
       <div className="max-w-6xl mx-auto py-8 px-6">
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
           <div className="flex items-start justify-between mb-6">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900">Payment #{payment.id}</h2>
-              <p className="text-sm text-slate-600 mt-1">{payment.payment_date?.split('T')[0] || payment.payment_date} • ₹{Number(payment.amount).toLocaleString()}</p>
+            <div className="flex items-center gap-6">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Payment #{payment.id}</h2>
+                <p className="text-lg text-slate-600 mt-1">
+                  {(payment.payment_date || '').split('T')[0]} • ₹{Number(payment.amount).toLocaleString()}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                {payment.payment_type && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                    {payment.payment_type === 'land_purchase' ? 'Land Purchase' :
+                     payment.payment_type === 'investment_sale' ? 'Investment/Sale' :
+                     payment.payment_type === 'documentation_legal' ? 'Documentation & Legal' :
+                     'Other Payment'}
+                  </span>
+                )}
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                  payment.status === 'paid' ? 'bg-green-100 text-green-800' :
+                  payment.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                  payment.status === 'overdue' ? 'bg-red-100 text-red-800' :
+                  'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {payment.status ? payment.status.charAt(0).toUpperCase() + payment.status.slice(1) : 'Pending'}
+                </span>
+              </div>
             </div>
             <button 
               onClick={() => router.push({ pathname: '/deals/payments', query: { id } })} 
@@ -112,59 +135,281 @@ export default function PaymentDetailPage() {
             </button>
           </div>
 
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1">
-              <div className="space-y-2">
-                <div><strong>Party</strong>: {payment.party_type} {payment.party_id ? `#${payment.party_id}` : ''}</div>
-                <div><strong>Mode</strong>: {payment.payment_mode || '-'}</div>
-                <div><strong>Reference</strong>: {payment.reference || '-'}</div>
-                <div><strong>Notes</strong>: {payment.notes || '-'}</div>
+          <div className="mt-6 space-y-6">
+            {/* Payment Information Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Payment Information */}
+              <div className="bg-white rounded-lg border border-slate-200 p-6">
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">Payment Information</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Mode:</span>
+                    <span className="font-medium text-slate-900">{payment.payment_mode || 'Not specified'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Reference:</span>
+                    <span className="font-medium text-slate-900">{payment.reference || 'Not provided'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Created by:</span>
+                    <span className="font-medium text-slate-900">{payment.created_by || 'Unknown'}</span>
+                  </div>
+                  {payment.payment_type && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Type:</span>
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        {payment.payment_type === 'land_purchase' ? 'Land Purchase' :
+                         payment.payment_type === 'investment_sale' ? 'Investment/Sale' :
+                         payment.payment_type === 'documentation_legal' ? 'Documentation & Legal' :
+                         'Other Payment'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Timeline */}
+              <div className="bg-white rounded-lg border border-slate-200 p-6">
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">Timeline</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Payment Date:</span>
+                    <span className="font-medium text-slate-900">{(payment.payment_date || '').split('T')[0] || 'Not set'}</span>
+                  </div>
+                  {payment.due_date && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Due Date:</span>
+                      <span className="font-medium text-slate-900">{(payment.due_date || '').split('T')[0]}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Recorded:</span>
+                    <span className="font-medium text-slate-900">{(payment.created_at || '').split('T')[0] || 'Unknown'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Details */}
+              <div className="bg-white rounded-lg border border-slate-200 p-6">
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">Additional Details</h3>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-slate-600">Notes:</span>
+                    <p className="font-medium text-slate-900 mt-1">{payment.notes || 'No additional notes'}</p>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="lg:col-span-2">
-              <h3 className="text-lg font-medium mb-4">Proofs</h3>
-              {proofs.length === 0 ? (
-                <p className="text-slate-500">No proofs uploaded yet.</p>
-              ) : (
-                <div className="space-y-6">
-                  {proofs.map(pr => (
-                    <div key={pr.id} className="bg-white rounded border p-4 shadow-sm">
-                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                        <div className="md:flex-1">
-                          <p className="text-sm text-slate-600">Uploaded by #{pr.uploaded_by} • {new Date(pr.uploaded_at).toLocaleString()}</p>
-                          <div className="mt-3 bg-slate-50 rounded overflow-hidden border">
-                                    {pr.file_path && pr.file_path.endsWith('.pdf') ? ( 
-                              <object data={pr.url} type="application/pdf" width="100%" height="500">PDF preview not available</object>
-                            ) : (
-                                      <img
-                                        src={pr.url}
-                                        alt={pr.file_path || 'proof'}
-                                        className={`w-full max-h-[560px] object-contain bg-white ${failedImages.has(pr.id) ? 'opacity-60' : ''}`}
-                                        onError={() => {
-                                          try { /* silence */ } catch {}
-                                          // replace broken image with generic icon
-                                          const img = document.querySelector(`img[alt="${pr.file_path || 'proof'}"]`)
-                                          if (img) img.src = '/file.svg'
-                                          setFailedImages(prev => {
-                                            const s = new Set(prev)
-                                            s.add(pr.id)
-                                            return s
-                                          })
-                                        }}
-                                      />
-                            )}
+
+            {/* Payment Flow Details */}
+            <div className="bg-white rounded-lg border border-slate-200 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Payment Flow Details</h3>
+              {payment.parties && payment.parties.length > 0 ? (
+                (() => {
+                  const getParticipantLabel = (pt) => {
+                    if (pt.party_name) {
+                      if (pt.party_id) {
+                        return `${pt.party_name} (${pt.party_type} #${pt.party_id})`
+                      } else {
+                        return `${pt.party_name} (${pt.party_type})`
+                      }
+                    } else {
+                      if (pt.party_id) return `${pt.party_type || 'participant'} #${pt.party_id}`
+                      return pt.party_type || 'participant'
+                    }
+                  }
+
+                  const payers = payment.parties.filter(pp => (pp.role || '').toLowerCase() === 'payer')
+                  const payees = payment.parties.filter(pp => (pp.role || '').toLowerCase() === 'payee')
+                  
+                  if (payers.length > 0 && payees.length > 0) {
+                    return (
+                      <div className="space-y-4">
+                        <div className="text-center">
+                          <span className="inline-flex items-center px-4 py-2 rounded-full text-lg font-medium bg-blue-100 text-blue-800">
+                            ₹{Number(payment.amount).toLocaleString()} Transfer
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-slate-600 uppercase tracking-wide mb-3">From (Payer)</p>
+                            <div className="space-y-2">
+                              {payers.map((payer, idx) => (
+                                <div key={idx} className="bg-green-100 border border-green-200 rounded-lg p-4">
+                                  <div className="font-medium text-green-800 text-lg">
+                                    {getParticipantLabel(payer)}
+                                  </div>
+                                  <div className="text-sm text-green-600 mt-1">
+                                    Role: {payer.role}
+                                  </div>
+                                  {payer.amount && (
+                                    <div className="text-sm text-green-600 mt-1">
+                                      Amount: ₹{Number(payer.amount).toLocaleString()}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <div className="mt-2 text-sm text-slate-600">{(pr.file_path || pr.url || '').split('/').pop()}</div>
-                          {pr.doc_type && <div className="mt-1 inline-block text-xs px-2 py-1 bg-slate-100 text-slate-700 rounded">{pr.doc_type}</div>}
+                          
+                          <div className="px-6">
+                            <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                            </svg>
+                          </div>
+                          
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-slate-600 uppercase tracking-wide mb-3">To (Payee)</p>
+                            <div className="space-y-2">
+                              {payees.map((payee, idx) => (
+                                <div key={idx} className="bg-blue-100 border border-blue-200 rounded-lg p-4">
+                                  <div className="font-medium text-blue-800 text-lg">
+                                    {getParticipantLabel(payee)}
+                                  </div>
+                                  <div className="text-sm text-blue-600 mt-1">
+                                    Role: {payee.role}
+                                  </div>
+                                  {payee.amount && (
+                                    <div className="text-sm text-blue-600 mt-1">
+                                      Amount: ₹{Number(payee.amount).toLocaleString()}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex-shrink-0 flex flex-col items-end gap-2">
-                          <a href={pr.url} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-md bg-white px-3 py-1 text-sm font-medium text-indigo-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50">Open</a>
-                          <a href={pr.url} download className="inline-flex items-center rounded-md bg-white px-3 py-1 text-sm font-medium text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50">Download</a>
-                          <button onClick={() => handleDeleteProof(pr.id)} className="inline-flex items-center rounded-md bg-white px-3 py-1 text-sm font-medium text-red-600 ring-1 ring-inset ring-slate-200 hover:bg-red-50">Delete</button>
+                      </div>
+                    )
+                  } else if (payment.parties.length > 0) {
+                    return (
+                      <div className="space-y-3">
+                        <div className="text-center">
+                          <span className="inline-flex items-center px-4 py-2 rounded-full text-lg font-medium bg-gray-100 text-gray-800">
+                            ₹{Number(payment.amount).toLocaleString()} Payment
+                          </span>
                         </div>
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-slate-600 uppercase tracking-wide">Parties Involved:</p>
+                          {payment.parties.map((party, idx) => (
+                            <div key={idx} className="bg-slate-100 border border-slate-200 rounded-lg p-4">
+                              <div className="font-medium text-slate-800 text-lg">
+                                {getParticipantLabel(party)}
+                              </div>
+                              {party.role && (
+                                <div className="text-sm text-slate-600 mt-1">
+                                  Role: {party.role}
+                                </div>
+                              )}
+                              {party.amount && (
+                                <div className="text-sm text-slate-600 mt-1">
+                                  Amount: ₹{Number(party.amount).toLocaleString()}
+                                </div>
+                              )}
+                              {party.pay_to_name && (
+                                <div className="text-sm text-blue-600 mt-1 bg-blue-50 p-2 rounded border-l-4 border-blue-400">
+                                  <strong>Paid to:</strong> {party.pay_to_name}
+                                </div>
+                              )}
+                              {party.pay_to_id && !party.pay_to_name && (
+                                <div className="text-sm text-blue-600 mt-1 bg-blue-50 p-2 rounded border-l-4 border-blue-400">
+                                  <strong>Paid to:</strong> {party.pay_to_type} #{party.pay_to_id}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Show payment flow summary */}
+                        {payment.payment_flow && (
+                          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div className="text-sm font-medium text-blue-800">Payment Flow:</div>
+                            <div className="text-blue-700 mt-1">{payment.payment_flow}</div>
+                          </div>
+                        )}
+                        
+                        {/* Show suggestion for incomplete data */}
+                        {payers.length > 0 && payees.length === 0 && !payment.parties.some(p => p.pay_to_name || p.pay_to_id) && (
+                          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <div className="text-sm text-yellow-800">
+                              <strong>Note:</strong> This payment shows who made the payment, but doesn't specify who received it. 
+                              For complete payment tracking, consider adding payee information when creating new payments.
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  } else {
+                    return (
+                      <div className="text-center text-slate-600">
+                        No detailed payment flow information available
+                      </div>
+                    )
+                  }
+                })()
+              ) : (
+                <div className="text-center py-6">
+                  <div className="text-lg text-slate-600 mb-2">
+                    <strong>Payment Amount:</strong> ₹{Number(payment.amount).toLocaleString()}
+                  </div>
+                  <div className="text-sm text-slate-500">
+                    Detailed payment flow information not available for this payment.
+                    {payment.party_type && payment.party_id && (
+                      <div className="mt-2">
+                        Related to: {payment.party_type} #{payment.party_id}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Proofs Section */}
+            <div className="bg-white rounded-lg border border-slate-200 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Proofs</h3>
+              {proofs.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {proofs.map((proof, idx) => (
+                    <div key={idx} className="border border-slate-300 rounded-lg p-4">
+                      <div className="text-sm font-medium text-slate-900 mb-2">{proof.filename || (proof.file_path || '').split('/').pop() || 'Document'}</div>
+                      <div className="text-xs text-slate-500 mb-3">
+                        {proof.doc_type && <span className="inline-block px-2 py-1 bg-slate-100 rounded mr-2">{proof.doc_type}</span>}
+                        {proof.uploaded_at && <span>Uploaded: {(proof.uploaded_at || '').split('T')[0]}</span>}
+                      </div>
+                      <div className="flex gap-2">
+                        <a 
+                          href={proof.url || proof.file_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
+                        >
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          View
+                        </a>
+                        <a 
+                          href={proof.url || proof.file_url}
+                          download
+                          className="inline-flex items-center px-3 py-1 bg-slate-500 text-white text-xs rounded hover:bg-slate-600 transition-colors"
+                        >
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Download
+                        </a>
                       </div>
                     </div>
                   ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-slate-500">
+                  <svg className="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  No proofs uploaded for this payment
                 </div>
               )}
             </div>

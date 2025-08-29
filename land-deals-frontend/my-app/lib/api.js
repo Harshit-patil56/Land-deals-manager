@@ -46,6 +46,7 @@ export const ownersAPI = {
 
 export const paymentsAPI = {
   list: (dealId) => api.get(`/payments/${dealId}`),
+  detail: (dealId, paymentId) => api.get(`/payments/${dealId}/${paymentId}`),
   // create accepts optional options object: { params: { force: true } }
   create: (dealId, data, options = {}) => api.post(`/payments/${dealId}`, data, { params: options.params || {} }),
   update: (dealId, paymentId, data) => api.put(`/payments/${dealId}/${paymentId}`, data)
