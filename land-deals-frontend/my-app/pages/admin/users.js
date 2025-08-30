@@ -160,7 +160,7 @@ export default function AdminUsers() {
   if (error === 'Access denied: insufficient permissions') {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full mx-4">
+        <div className="bg-white rounded shadow-lg p-8 max-w-md w-full mx-4">
           <div className="text-center">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -174,7 +174,7 @@ export default function AdminUsers() {
               <p className="text-xs text-slate-400">{getRoleDescription(user?.role)}</p>
             </div>
             <Link href="/dashboard" className="mt-6">
-              <span className="inline-flex items-center px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer">
+              <span className="px-4 py-2 bg-slate-900 text-white rounded hover:bg-slate-800 cursor-pointer">
                 Return to Dashboard
               </span>
             </Link>
@@ -187,7 +187,7 @@ export default function AdminUsers() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Navigation */}
-      <div className="bg-white shadow-sm border-b border-slate-200">
+      <div className="bg-white border-b border-slate-200">
         <Navbar user={user} onLogout={handleLogout} />
       </div>
 
@@ -196,7 +196,7 @@ export default function AdminUsers() {
         <div className="px-6 py-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mr-4">
+              <div className="w-12 h-12 bg-red-100 rounded flex items-center justify-center mr-4">
                 <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                 </svg>
@@ -208,7 +208,7 @@ export default function AdminUsers() {
             </div>
             <div className="flex items-center space-x-4">
               <Link href="/dashboard">
-                <span className="inline-flex items-center px-4 py-2 border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-all duration-200 rounded-lg cursor-pointer">
+                <span className="px-4 py-2 border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 rounded cursor-pointer">
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                   </svg>
@@ -223,7 +223,7 @@ export default function AdminUsers() {
       {/* Main Content */}
       <div className="px-6 py-8">
         {error && error !== 'Access denied: admin only' && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg">
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-800 rounded">
             <div className="flex items-center">
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -234,10 +234,10 @@ export default function AdminUsers() {
         )}
 
         {/* Action Bar */}
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 mb-6">
+        <div className="bg-white rounded  border border-slate-200 mb-6">
           <div className="px-6 py-4 border-b border-slate-200">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Users ({filteredUsers.length})</h2>
+              <h2 className="text-lg font-medium text-slate-900">Users ({filteredUsers.length})</h2>
               <CreateButton
                 user={user}
                 resource="users"
@@ -266,7 +266,7 @@ export default function AdminUsers() {
                     placeholder="Search users by name, username, or role..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                   />
                 </div>
               </div>
@@ -275,7 +275,7 @@ export default function AdminUsers() {
                 <select
                   value={filterRole}
                   onChange={(e) => setFilterRole(e.target.value)}
-                  className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  className="px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                 >
                   <option value="all">All Roles</option>
                   <option value="admin">Admin</option>
@@ -289,7 +289,7 @@ export default function AdminUsers() {
           {/* Create User Form */}
           {showCreateForm && hasPermission(user, PERMISSIONS.USERS_CREATE) && (
             <div className="px-6 py-6 border-b border-slate-200 bg-blue-50">
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">Create New User</h3>
+              <h3 className="text-lg font-medium text-slate-900 mb-4">Create New User</h3>
               <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Username *</label>
@@ -298,7 +298,7 @@ export default function AdminUsers() {
                     value={form.username}
                     onChange={e => setForm({...form, username: e.target.value})}
                     placeholder="Enter username"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                     required
                   />
                 </div>
@@ -309,7 +309,7 @@ export default function AdminUsers() {
                     value={form.password}
                     onChange={e => setForm({...form, password: e.target.value})}
                     placeholder="Enter password"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                     required
                   />
                 </div>
@@ -320,7 +320,7 @@ export default function AdminUsers() {
                     value={form.full_name}
                     onChange={e => setForm({...form, full_name: e.target.value})}
                     placeholder="Enter full name"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                     required
                   />
                 </div>
@@ -329,7 +329,7 @@ export default function AdminUsers() {
                   <select
                     value={form.role}
                     onChange={e => setForm({...form, role: e.target.value})}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                   >
                     <option value="user">User</option>
                     <option value="admin">Admin</option>
@@ -339,7 +339,7 @@ export default function AdminUsers() {
                 <div className="md:col-span-2 lg:col-span-4 flex items-center space-x-3">
                   <button
                     type="submit"
-                    className="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded"
                   >
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -352,7 +352,7 @@ export default function AdminUsers() {
                       setShowCreateForm(false)
                       setForm({ username: '', password: '', role: 'user', full_name: '' })
                     }}
-                    className="inline-flex items-center px-4 py-2 border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 rounded-lg transition-colors"
+                    className="px-4 py-2 border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 rounded"
                   >
                     Cancel
                   </button>
@@ -366,9 +366,9 @@ export default function AdminUsers() {
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 bg-emerald-600 rounded-full animate-pulse"></div>
-                  <div className="w-4 h-4 bg-emerald-600 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                  <div className="w-4 h-4 bg-emerald-600 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                  <div className="w-4 h-4 bg-slate-600 rounded-full animate-pulse"></div>
+                  <div className="w-4 h-4 bg-slate-600 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                  <div className="w-4 h-4 bg-slate-600 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
                 </div>
               </div>
             ) : filteredUsers.length === 0 ? (
@@ -423,7 +423,7 @@ export default function AdminUsers() {
                             </select>
                           </td>
                           <td className="px-6 py-4">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            <span className="flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                               Editing
                             </span>
                           </td>
@@ -431,13 +431,13 @@ export default function AdminUsers() {
                             <div className="flex justify-end space-x-2">
                               <button
                                 onClick={handleUpdate}
-                                className="inline-flex items-center px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded transition-colors"
+                                className="flex items-center px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded "
                               >
                                 Save
                               </button>
                               <button
                                 onClick={cancelEdit}
-                                className="inline-flex items-center px-2 py-1 bg-slate-500 hover:bg-slate-600 text-white text-xs rounded transition-colors"
+                                className="flex items-center px-2 py-1 bg-slate-500 hover:bg-slate-600 text-white text-xs rounded "
                               >
                                 Cancel
                               </button>
@@ -460,12 +460,12 @@ export default function AdminUsers() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(u.role)}`}>
+                            <span className={`flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(u.role)}`}>
                               {getRoleName(u.role)}
                             </span>
                           </td>
                           <td className="px-6 py-4">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                            <span className="flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
                               Active
                             </span>
                           </td>
@@ -484,7 +484,7 @@ export default function AdminUsers() {
                               {hasPermission(user, PERMISSIONS.USERS_EDIT) && (
                                 <button
                                   onClick={() => handleReset(u)}
-                                  className="inline-flex items-center px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded transition-colors"
+                                  className="flex items-center px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded "
                                   title="Reset password"
                                 >
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

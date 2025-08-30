@@ -10,6 +10,11 @@ import os
 import time
 from io import BytesIO
 try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load environment variables from .env file
+except ImportError:
+    pass  # python-dotenv not installed
+try:
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
     from reportlab.lib.utils import ImageReader
@@ -2490,6 +2495,244 @@ def get_owner_documents(current_user, owner_id):
     finally:
         if connection:
             connection.close()
+
+# ===== INVESTORS ENDPOINTS =====
+
+@app.route('/api/investors', methods=['GET'])
+@token_required
+def get_investors(current_user):
+    """Get all investors"""
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT i.*, d.project_name as deal_title
+            FROM investors i
+            LEFT JOIN deals d ON i.deal_id = d.id
+            ORDER BY i.created_at DESC
+        """)
+        
+        investors = cursor.fetchall()
+        
+        # Format the data
+        formatted_investors = []
+        for investor in investors:
+            formatted_investors.append({
+                'id': investor['id'],
+                'deal_id': investor['deal_id'],
+                'deal_title': investor['deal_title'],
+                'investor_name': investor['investor_name'],
+                'investment_amount': float(investor['investment_amount']) if investor['investment_amount'] else 0,
+                'investment_percentage': float(investor['investment_percentage']) if investor['investment_percentage'] else 0,
+                'mobile': investor['mobile'],
+                'email': investor['email'],
+                'aadhar_card': investor['aadhar_card'],
+                'pan_card': investor['pan_card'],
+                'address': investor['address'],
+                'created_at': investor['created_at'].isoformat() if investor['created_at'] else None
+            })
+        
+        return jsonify(formatted_investors)
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection:
+            connection.close()
+
+@app.route('/api/investors/<int:investor_id>', methods=['GET'])
+@token_required
+def get_investor(current_user, investor_id):
+    """Get a specific investor with their deals and documents"""
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        # Get the investor details
+        cursor.execute("""
+            SELECT i.*, d.project_name as deal_title
+            FROM investors i
+            LEFT JOIN deals d ON i.deal_id = d.id
+            WHERE i.id = %s
+        """, (investor_id,))
+        
+        investor = cursor.fetchone()
+        if not investor:
+            return jsonify({'error': 'Investor not found'}), 404
+        
+        # Get all deals this investor is involved in
+        cursor.execute("""
+            SELECT d.*, i.investment_amount, i.investment_percentage
+            FROM deals d
+            INNER JOIN investors i ON d.id = i.deal_id
+            WHERE i.id = %s
+        """, (investor_id,))
+        deals = cursor.fetchall() or []
+        
+        # Get documents for this investor (if any)
+        # Note: You might need to add investor documents table if it doesn't exist
+        documents = []  # For now, empty array since investor documents might not be implemented
+        
+        # Format the investor data
+        formatted_investor = {
+            'id': investor['id'],
+            'deal_id': investor['deal_id'],
+            'deal_title': investor['deal_title'],
+            'investor_name': investor['investor_name'],
+            'investment_amount': float(investor['investment_amount']) if investor['investment_amount'] else 0,
+            'investment_percentage': float(investor['investment_percentage']) if investor['investment_percentage'] else 0,
+            'mobile': investor['mobile'],
+            'email': investor['email'],
+            'aadhar_card': investor['aadhar_card'],
+            'pan_card': investor['pan_card'],
+            'address': investor['address'],
+            'created_at': investor['created_at'].isoformat() if investor['created_at'] else None
+        }
+        
+        # Convert datetime objects in deals
+        for deal in deals:
+            if deal:
+                for key, value in deal.items():
+                    if isinstance(value, datetime):
+                        deal[key] = value.isoformat()
+        
+        return jsonify({
+            'investor': formatted_investor,
+            'deals': deals,
+            'documents': documents
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection:
+            connection.close()
+
+@app.route('/api/investors', methods=['POST'])
+@token_required
+def create_investor(current_user):
+    """Create a new investor"""
+    try:
+        data = request.get_json()
+        required_fields = ['deal_id', 'investor_name']
+        
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Check if deal exists
+        cursor.execute("SELECT id FROM deals WHERE id = %s", (data['deal_id'],))
+        if not cursor.fetchone():
+            return jsonify({'error': 'Deal not found'}), 404
+        
+        # Insert new investor
+        cursor.execute("""
+            INSERT INTO investors (deal_id, investor_name, investment_amount, investment_percentage,
+                                 mobile, email, aadhar_card, pan_card, address)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            data['deal_id'],
+            data['investor_name'],
+            data.get('investment_amount'),
+            data.get('investment_percentage'),
+            data.get('mobile'),
+            data.get('email'),
+            data.get('aadhar_card'),
+            data.get('pan_card'),
+            data.get('address')
+        ))
+        
+        connection.commit()
+        investor_id = cursor.lastrowid
+        
+        return jsonify({'message': 'Investor created successfully', 'id': investor_id}), 201
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection:
+            connection.close()
+
+@app.route('/api/investors/<int:investor_id>', methods=['PUT'])
+@token_required
+def update_investor(current_user, investor_id):
+    """Update an existing investor"""
+    try:
+        data = request.get_json()
+        
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Check if investor exists
+        cursor.execute("SELECT id FROM investors WHERE id = %s", (investor_id,))
+        if not cursor.fetchone():
+            return jsonify({'error': 'Investor not found'}), 404
+        
+        # Build update query dynamically
+        update_fields = []
+        update_values = []
+        
+        updatable_fields = ['deal_id', 'investor_name', 'investment_amount', 'investment_percentage',
+                           'mobile', 'email', 'aadhar_card', 'pan_card', 'address']
+        
+        for field in updatable_fields:
+            if field in data:
+                update_fields.append(f"{field} = %s")
+                update_values.append(data[field])
+        
+        if not update_fields:
+            return jsonify({'error': 'No fields to update'}), 400
+        
+        # If deal_id is being updated, check if the new deal exists
+        if 'deal_id' in data:
+            cursor.execute("SELECT id FROM deals WHERE id = %s", (data['deal_id'],))
+            if not cursor.fetchone():
+                return jsonify({'error': 'Deal not found'}), 404
+        
+        update_values.append(investor_id)
+        query = f"UPDATE investors SET {', '.join(update_fields)} WHERE id = %s"
+        
+        cursor.execute(query, update_values)
+        connection.commit()
+        
+        return jsonify({'message': 'Investor updated successfully'})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection:
+            connection.close()
+
+@app.route('/api/investors/<int:investor_id>', methods=['DELETE'])
+@token_required
+def delete_investor(current_user, investor_id):
+    """Delete an investor"""
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # Check if investor exists
+        cursor.execute("SELECT id FROM investors WHERE id = %s", (investor_id,))
+        if not cursor.fetchone():
+            return jsonify({'error': 'Investor not found'}), 404
+        
+        # Delete investor
+        cursor.execute("DELETE FROM investors WHERE id = %s", (investor_id,))
+        connection.commit()
+        
+        return jsonify({'message': 'Investor deleted successfully'})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if connection:
+            connection.close()
+
+# ===== END INVESTORS ENDPOINTS =====
 
 @app.route('/api/upload', methods=['POST'])
 @token_required

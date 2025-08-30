@@ -26,37 +26,36 @@ export default function OwnerDetail() {
     }
     setUser(currentUser);
     
-    const fetchOwnerDetails = async () => {
-      try {
-        setLoading(true);
-        const response = await api.get(`/owners/${id}`);
-        setOwner(response.data.owner);
-        setProjects(response.data.projects);
-        
-        // Ensure documents is an array
-        const documentsArray = Array.isArray(response.data.documents) 
-          ? response.data.documents 
-          : Object.values(response.data.documents || {}).flat();
-      
-        setDocuments(documentsArray);
-        console.log('Final documents set:', documentsArray);
-      } catch (error) {
-        console.error('Error fetching owner details:', error);
-        if (error.response?.status === 404) {
-          toast.error('Owner not found');
-          router.push('/owners');
-        } else {
-          toast.error('Failed to fetch owner details');
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     if (id) {
       fetchOwnerDetails();
     }
-  }, [id, router]);
+  }, [id]);
+
+  const fetchOwnerDetails = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/owners/${id}`);
+      setOwner(response.data.owner);
+      setProjects(response.data.projects);
+      
+      // Ensure documents is an array
+      const documentsArray = Array.isArray(response.data.documents) 
+        ? response.data.documents 
+        : Object.values(response.data.documents || {}).flat();
+      
+      setDocuments(documentsArray);
+    } catch (error) {
+      console.error('Error fetching owner details:', error);
+      if (error.response?.status === 404) {
+        toast.error('Owner not found');
+        router.push('/owners');
+      } else {
+        toast.error('Failed to fetch owner details');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleFileUpload = async (e) => {
     e.preventDefault();
@@ -80,8 +79,7 @@ export default function OwnerDetail() {
       setSelectedFile(null);
       setDocumentType('');
       toast.success('Document uploaded successfully');
-      // Refresh the page to reload data
-      window.location.reload();
+      fetchOwnerDetails(); // Refresh data
     } catch (error) {
       console.error('Error uploading document:', error);
       toast.error('Failed to upload document');
@@ -105,7 +103,7 @@ export default function OwnerDetail() {
     if (navigator.share) {
       try {
         await navigator.share(shareData);
-      } catch {
+      } catch (error) {
         // Fallback to copying URL
         navigator.clipboard.writeText(window.location.href);
         toast.success('Owner details link copied to clipboard!');
@@ -435,7 +433,7 @@ export default function OwnerDetail() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
                   <h3 className="text-xl font-semibold text-slate-900 mb-3">No Properties Found</h3>
-                  <p className="text-slate-600 max-w-md mx-auto">This owner doesn&apos;t have any properties registered in the system yet. Properties will appear here once they are added.</p>
+                  <p className="text-slate-600 max-w-md mx-auto">This owner doesn't have any properties registered in the system yet. Properties will appear here once they are added.</p>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-200">

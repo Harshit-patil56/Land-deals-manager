@@ -48,12 +48,12 @@ export default function Login() {
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-6 shadow-lg rounded-lg border border-slate-200 sm:px-10">
+        <div className="bg-white py-8 px-6 shadow-lg rounded border border-slate-200 sm:px-10">
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
             
             {/* Username Field */}
             <div>
-              <label htmlFor="username" className="block text-sm font-semibold text-slate-700 mb-2">
+              <label htmlFor="username" className="block text-sm font-medium text-slate-700 mb-2">
                 Username
               </label>
               <div className="relative">
@@ -73,7 +73,7 @@ export default function Login() {
                   placeholder="Enter your username"
                   className={`block w-full pl-10 pr-3 py-3 border ${
                     errors.username ? 'border-red-300' : 'border-slate-300'
-                  } rounded-lg placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 text-slate-900`}
+                  } rounded placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500  text-slate-900`}
                 />
               </div>
               {errors.username && (
@@ -88,7 +88,7 @@ export default function Login() {
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-slate-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-2">
                 Password
               </label>
               <div className="relative">
@@ -108,7 +108,7 @@ export default function Login() {
                   placeholder="Enter your password"
                   className={`block w-full pl-10 pr-12 py-3 border ${
                     errors.password ? 'border-red-300' : 'border-slate-300'
-                  } rounded-lg placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 text-slate-900`}
+                  } rounded placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500  text-slate-900`}
                 />
                 <button
                   type="button"
@@ -142,7 +142,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-base font-semibold rounded-lg text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg"
+                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-base font-medium rounded text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 disabled:cursor-not-allowed  shadow-lg"
               >
                 {loading && (
                   <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
@@ -155,7 +155,7 @@ export default function Login() {
             </div>
 
             {/* Security Notice */}
-            <div className="mt-6 bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <div className="mt-6 bg-slate-50 border border-slate-200 rounded p-4">
               <div className="flex items-center">
                 <svg className="w-5 h-5 text-slate-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />

@@ -23,12 +23,9 @@ export default function NewDeal() {
     total_area: '',
     area_unit: 'Acre',
     purchase_date: '',
-    purchase_amount: '',
-    selling_amount: '',
     status: 'open',
     owners: [{ name: '', mobile: '', email: '', aadhar_card: '', pan_card: '' }],
     investors: [{ investor_name: '', investment_amount: '', investment_percentage: '', mobile: '', email: '', aadhar_card: '', pan_card: '', address: '' }],
-    expenses: [{ expense_type: '', expense_description: '', amount: '', paid_by: '', expense_date: '', receipt_number: '' }],
     buyers: [{ name: '', mobile: '', email: '', aadhar_card: '', pan_card: '' }],
     documents: [],
   });
@@ -319,7 +316,7 @@ export default function NewDeal() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-lg shadow-sm border border-slate-200 mb-6">
             <div className="w-8 h-8 border-3 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
           </div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading...</h3>
+          <h3 className="text-lg font-medium text-slate-900 mb-2">Loading...</h3>
           <p className="text-slate-600">Please wait while we initialize the form</p>
         </div>
       </div>
@@ -330,12 +327,12 @@ export default function NewDeal() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-lg shadow-sm border border-slate-200 mb-6">
+          <div className="w-16 h-16 bg-white rounded border border-slate-200 mb-6 flex items-center justify-center">
             <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Access Restricted</h3>
+          <h3 className="text-lg font-medium text-slate-900 mb-2">Access Restricted</h3>
           <p className="text-slate-600">Only admin or auditor can create new deals.</p>
         </div>
       </div>
@@ -942,7 +939,7 @@ export default function NewDeal() {
   return (
     <div className="min-h-screen w-full bg-slate-50 flex flex-col">
       {/* Navigation */}
-      <div className="bg-white shadow-sm border-b border-slate-200 w-full">
+      <div className="bg-white  border-b border-slate-200 w-full">
         <Navbar user={user} onLogout={() => router.push('/login')} />
       </div>
 
@@ -951,7 +948,7 @@ export default function NewDeal() {
         <div className="px-6 py-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center mr-4">
+              <div className="w-12 h-12 bg-slate-100 rounded flex items-center justify-center mr-4">
                 <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
@@ -967,7 +964,7 @@ export default function NewDeal() {
               <button
                 type="button"
                 onClick={() => router.push('/dashboard')}
-                className="inline-flex items-center rounded-md bg-white px-6 py-3 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 cursor-pointer transition-all duration-200"
+                className="px-6 py-3 text-sm bg-white text-slate-900 border border-slate-300 hover:bg-slate-50 cursor-pointer rounded"
               >
                 ← Back to Dashboard
               </button>
@@ -982,8 +979,8 @@ export default function NewDeal() {
           <div className="w-full px-6 py-8 space-y-8">
 
             {/* Project & Land Details with Documents */}
-            <section className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-900 mb-6 pb-3 border-b border-slate-200">
+            <section className="bg-white rounded border border-slate-200 p-6 ">
+              <h2 className="text-lg font-medium text-slate-900 mb-6 pb-3 border-b border-slate-200">
                 Project & Land Details with Documents
               </h2>
               
@@ -1002,7 +999,7 @@ export default function NewDeal() {
                       name="state" 
                       value={form.state} 
                       onChange={handleChange} 
-                      className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500" 
+                      className="w-full px-3 py-2 border border-slate-300 rounded  focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500" 
                       required
                       disabled={locationLoading.states}
                     >
@@ -1024,7 +1021,7 @@ export default function NewDeal() {
                       name="district" 
                       value={form.district} 
                       onChange={handleChange} 
-                      className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500" 
+                      className="w-full px-3 py-2 border border-slate-300 rounded  focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500" 
                       required
                       disabled={!form.state || locationLoading.districts}
                     >
@@ -1049,7 +1046,7 @@ export default function NewDeal() {
                       value={form.taluka}
                       onChange={handleChange}
                       placeholder="Enter taluka name"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors"
+                      className="w-full px-3 py-2 border border-slate-300 rounded  placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 "
                       required
                     />
                   </div>
@@ -1063,7 +1060,7 @@ export default function NewDeal() {
                       value={form.village}
                       onChange={handleChange}
                       placeholder="Enter village name"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors"
+                      className="w-full px-3 py-2 border border-slate-300 rounded  placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 "
                       required
                     />
                   </div>
@@ -1080,13 +1077,13 @@ export default function NewDeal() {
                         value={form.total_area} 
                         onChange={handleChange} 
                         placeholder="Enter area"
-                        className="flex-1 px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors"
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded  placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 "
                       />
                       <select 
                         name="area_unit" 
                         value={form.area_unit} 
                         onChange={handleChange} 
-                        className="px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                        className="px-3 py-2 border border-slate-300 rounded  focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                       >
                         <option value="Acre">Acre</option>
                         <option value="Guntha">Guntha</option>
@@ -1101,11 +1098,9 @@ export default function NewDeal() {
                   </div>
 
                   <Input type="date" label="Purchase Date" name="purchase_date" value={form.purchase_date} onChange={handleChange} required />
-                  <Input type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*" label="Purchase Amount" name="purchase_amount" value={form.purchase_amount} onChange={handleChange} required />
-                  <Input type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*" label="Selling Amount" name="selling_amount" value={form.selling_amount} onChange={handleChange} />
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
-                    <select name="status" value={form.status} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500">
+                    <select name="status" value={form.status} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded  focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500">
                       <option value="open">Open</option>
                       <option value="closed">Closed</option>
                     </select>
@@ -1187,15 +1182,15 @@ export default function NewDeal() {
             </section>
 
             {/* Owners & Documents */}
-            <section className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-900 mb-6 pb-3 border-b border-slate-200">
+            <section className="bg-white rounded border border-slate-200 p-6 ">
+              <h2 className="text-lg font-medium text-slate-900 mb-6 pb-3 border-b border-slate-200">
                 Owners & Documents
               </h2>
               
               {/* Individual Owners with their Documents */}
               <div className="space-y-8">
                 {form.owners.map((owner, idx) => (
-                  <div key={idx} className="bg-slate-50 border border-slate-200 rounded-lg p-6">
+                  <div key={idx} className="bg-slate-50 border border-slate-200 rounded p-6">
                     {/* Owner Header */}
                     <div className="flex items-center justify-between mb-6">
                       <h3 className="text-md font-medium text-slate-800">
@@ -1205,7 +1200,7 @@ export default function NewDeal() {
                         <button 
                           type="button" 
                           onClick={() => removeOwnerWithType(idx)} 
-                          className="text-red-600 hover:text-red-800 text-sm font-medium transition-colors px-3 py-1 rounded border border-red-300 hover:border-red-400"
+                          className="text-red-600 hover:text-red-800 text-sm font-medium  px-3 py-1 rounded border border-red-300 hover:border-red-400"
                         >
                           Remove Owner
                         </button>
@@ -1213,11 +1208,11 @@ export default function NewDeal() {
                     </div>
 
                     {/* Owner Type Selection */}
-                    <div className="mb-6 p-4 bg-white border border-slate-200 rounded-lg">
+                    <div className="mb-6 p-4 bg-white border border-slate-200 rounded">
                       <h4 className="text-sm font-medium text-slate-700 mb-3">Owner Type</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div 
-                          className={`p-3 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                          className={`p-3 border-2 rounded cursor-pointer  ${
                             (ownerSelectionTypes[idx] || 'new') === 'new' 
                               ? 'border-slate-500 bg-slate-50' 
                               : 'border-slate-200 hover:border-slate-300'
@@ -1246,7 +1241,7 @@ export default function NewDeal() {
                         </div>
                         
                         <div 
-                          className={`p-3 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                          className={`p-3 border-2 rounded cursor-pointer  ${
                             ownerSelectionTypes[idx] === 'existing' 
                               ? 'border-slate-500 bg-slate-50' 
                               : 'border-slate-200 hover:border-slate-300'
@@ -1284,7 +1279,7 @@ export default function NewDeal() {
                           <select
                             value={selectedExistingOwners[idx] || ''}
                             onChange={(e) => handleExistingOwnerSelect(idx, e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           >
                             <option value="">Choose an existing owner</option>
                             {existingOwners.map((existingOwner) => (
@@ -1311,31 +1306,31 @@ export default function NewDeal() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                           <div className="relative">
                             <label className="block text-xs font-medium text-slate-500 mb-1">Owner Name</label>
-                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-slate-700">
                               {owner.name || 'Not provided'}
                             </div>
                           </div>
                           <div className="relative">
                             <label className="block text-xs font-medium text-slate-500 mb-1">Mobile Number</label>
-                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-slate-700">
                               {owner.mobile || 'Not provided'}
                             </div>
                           </div>
                           <div className="relative">
                             <label className="block text-xs font-medium text-slate-500 mb-1">Email Address</label>
-                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-slate-700">
                               {owner.email || 'Not provided'}
                             </div>
                           </div>
                           <div className="relative">
                             <label className="block text-xs font-medium text-slate-500 mb-1">Aadhaar Card</label>
-                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-slate-700">
                               {owner.aadhar_card || 'Not provided'}
                             </div>
                           </div>
                           <div className="relative">
                             <label className="block text-xs font-medium text-slate-500 mb-1">PAN Card</label>
-                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+                            <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded text-slate-700">
                               {owner.pan_card || 'Not provided'}
                             </div>
                           </div>
@@ -1400,7 +1395,7 @@ export default function NewDeal() {
                           {existingOwnerDocuments[idx] && Object.keys(existingOwnerDocuments[idx]).length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                               {Object.entries(existingOwnerDocuments[idx]).map(([docType, docs]) => (
-                                <div key={docType} className="border rounded-lg p-3 bg-green-50">
+                                <div key={docType} className="border rounded p-3 bg-green-50">
                                   <h5 className="font-medium text-green-800 mb-2">
                                     {getDocumentDisplayName(docType)}
                                   </h5>
@@ -1543,7 +1538,7 @@ export default function NewDeal() {
                 <button 
                   type="button" 
                   onClick={() => addOwnerWithType()} 
-                  className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-gray-600 hover:border-gray-400 hover:text-gray-700 font-medium transition-colors"
+                  className="w-full border-2 border-dashed border-gray-300 rounded p-4 text-gray-600 hover:border-gray-400 hover:text-gray-700 font-medium "
                 >
                   + Add Owner
                 </button>
@@ -1551,15 +1546,15 @@ export default function NewDeal() {
             </section>
 
             {/* Investors */}
-            <section className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
+            <section className="bg-white rounded border border-gray-200 p-6">
+              <h2 className="text-lg font-medium text-gray-900 mb-6 pb-3 border-b border-gray-200">
                 Investors & Documents
               </h2>
               
               {/* Individual Investors with their Documents */}
               <div className="space-y-8">
                 {form.investors.map((investor, idx) => (
-                  <div key={idx} className="bg-slate-50 border border-slate-200 rounded-lg p-6">
+                  <div key={idx} className="bg-slate-50 border border-slate-200 rounded p-6">
                     {/* Investor Header */}
                     <div className="flex items-center justify-between mb-6">
                       <h3 className="text-md font-medium text-gray-800">
@@ -1569,7 +1564,7 @@ export default function NewDeal() {
                         <button 
                           type="button" 
                           onClick={() => removeInvestorWithType(idx)} 
-                          className="text-red-600 hover:text-red-800 text-sm font-medium transition-colors px-3 py-1 rounded border border-red-300 hover:border-red-400"
+                          className="text-red-600 hover:text-red-800 text-sm font-medium  px-3 py-1 rounded border border-red-300 hover:border-red-400"
                         >
                           Remove Investor
                         </button>
@@ -1577,11 +1572,11 @@ export default function NewDeal() {
                     </div>
 
                     {/* Investor Type Selection */}
-                    <div className="mb-6 p-4 bg-white border border-gray-200 rounded-lg">
+                    <div className="mb-6 p-4 bg-white border border-gray-200 rounded">
                       <h4 className="text-sm font-medium text-gray-700 mb-3">Investor Type</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div 
-                          className={`p-3 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                          className={`p-3 border-2 rounded cursor-pointer  ${
                             (investorSelectionTypes[idx] || 'new') === 'new' 
                               ? 'border-blue-500 bg-blue-50' 
                               : 'border-gray-200 hover:border-gray-300'
@@ -1610,7 +1605,7 @@ export default function NewDeal() {
                         </div>
                         
                         <div 
-                          className={`p-3 border-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                          className={`p-3 border-2 rounded cursor-pointer  ${
                             investorSelectionTypes[idx] === 'existing' 
                               ? 'border-blue-500 bg-blue-50' 
                               : 'border-gray-200 hover:border-gray-300'
@@ -1648,7 +1643,7 @@ export default function NewDeal() {
                           <select
                             value={selectedExistingInvestors[idx] || ''}
                             onChange={(e) => handleExistingInvestorSelect(idx, e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           >
                             <option value="">Choose an existing investor</option>
                             {existingInvestors.map((existingInvestor) => (
@@ -1732,7 +1727,7 @@ export default function NewDeal() {
                               name="investor_name"
                               value={investor.investor_name}
                               onChange={(e) => handleArrayChange('investors', idx, e)}
-                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               placeholder="Enter investor name"
                               required
                             />
@@ -1746,7 +1741,7 @@ export default function NewDeal() {
                               name="investment_amount"
                               value={investor.investment_amount}
                               onChange={(e) => handleArrayChange('investors', idx, e)}
-                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               placeholder="Amount"
                             />
                           </div>
@@ -1759,7 +1754,7 @@ export default function NewDeal() {
                               name="investment_percentage"
                               value={investor.investment_percentage}
                               onChange={(e) => handleArrayChange('investors', idx, e)}
-                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               placeholder="Share %"
                             />
                           </div>
@@ -1770,7 +1765,7 @@ export default function NewDeal() {
                               name="mobile"
                               value={investor.mobile}
                               onChange={(e) => handleArrayChange('investors', idx, e)}
-                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               placeholder="10-digit mobile number"
                               pattern="[0-9]{10}"
                               maxLength="10"
@@ -1783,7 +1778,7 @@ export default function NewDeal() {
                               name="email"
                               value={investor.email}
                               onChange={(e) => handleArrayChange('investors', idx, e)}
-                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               placeholder="Email address"
                             />
                           </div>
@@ -1794,7 +1789,7 @@ export default function NewDeal() {
                               name="aadhar_card"
                               value={investor.aadhar_card}
                               onChange={(e) => handleArrayChange('investors', idx, e)}
-                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               placeholder="XXXX XXXX XXXX"
                               pattern="[0-9]{4} [0-9]{4} [0-9]{4}"
                               maxLength="14"
@@ -1807,7 +1802,7 @@ export default function NewDeal() {
                               name="pan_card"
                               value={investor.pan_card}
                               onChange={(e) => handleArrayChange('investors', idx, e)}
-                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               placeholder="ABCDE1234F"
                               pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}"
                               maxLength="10"
@@ -1820,7 +1815,7 @@ export default function NewDeal() {
                               name="address"
                               value={investor.address}
                               onChange={(e) => handleArrayChange('investors', idx, e)}
-                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               placeholder="Address"
                             />
                           </div>
@@ -1845,7 +1840,7 @@ export default function NewDeal() {
                               <h5 className="text-sm font-medium text-green-700 mb-3">Existing Documents</h5>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {Object.entries(existingInvestorDocuments[idx]).map(([docType, docs]) => (
-                                  <div key={docType} className="p-3 bg-green-50 rounded-lg border border-green-200">
+                                  <div key={docType} className="p-3 bg-green-50 rounded border border-green-200">
                                     <h6 className="font-medium text-green-800 capitalize mb-2">
                                       {getInvestorDocumentDisplayName(docType)}
                                     </h6>
@@ -1974,31 +1969,13 @@ export default function NewDeal() {
                   <button 
                     type="button" 
                     onClick={addInvestorWithType}
-                    className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors px-4 py-2 border border-blue-300 rounded-lg hover:border-blue-400 hover:bg-blue-50"
+                    className="flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium  px-4 py-2 border border-blue-300 rounded hover:border-blue-400 hover:bg-blue-50"
                   >
                     + Add Investor
                   </button>
                 </div>
               </div>
             </section>
-
-            {/* Expenses */}
-            <DynamicSection
-              title="Expenses"
-              items={form.expenses}
-              onAdd={() => addArrayItem('expenses', { expense_type: '', expense_description: '', amount: '', paid_by: '', expense_date: '', receipt_number: '' })}
-              onRemove={(idx) => removeArrayItem('expenses', idx)}
-              render={(exp, idx) => (
-                <>
-                  <Input name="expense_type" value={exp.expense_type} onChange={(e) => handleArrayChange('expenses', idx, e)} placeholder="Type (Survey, Legal...)" required />
-                  <Input name="expense_description" value={exp.expense_description} onChange={(e) => handleArrayChange('expenses', idx, e)} placeholder="Description" />
-                  <Input type="text" inputMode="decimal" pattern="[0-9]*\.?[0-9]*" name="amount" value={exp.amount} onChange={(e) => handleArrayChange('expenses', idx, e)} placeholder="Amount" required />
-                  <Input name="paid_by" value={exp.paid_by} onChange={(e) => handleArrayChange('expenses', idx, e)} placeholder="Paid By (Investor ID)" />
-                  <Input type="date" name="expense_date" value={exp.expense_date} onChange={(e) => handleArrayChange('expenses', idx, e)} />
-                  <Input name="receipt_number" value={exp.receipt_number} onChange={(e) => handleArrayChange('expenses', idx, e)} placeholder="Receipt Number" />
-                </>
-              )}
-            />
 
             {/* Buyers */}
             <DynamicSection
@@ -2051,16 +2028,16 @@ export default function NewDeal() {
             />
 
             {/* Documents */}
-            <section className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
+            <section className="bg-white rounded border border-gray-200 p-6">
+              <h2 className="text-lg font-medium text-gray-900 mb-6 pb-3 border-b border-gray-200">
                 Upload Documents
               </h2>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+              <div className="border-2 border-dashed border-gray-300 rounded p-6 text-center hover:border-gray-400 ">
                 <input 
                   type="file" 
                   multiple 
                   onChange={handleFileChange} 
-                  className="w-full file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+                  className="w-full file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
                 />
                 <p className="mt-2 text-sm text-gray-500">Select multiple files to upload</p>
                 {files.length > 0 && (
@@ -2084,14 +2061,14 @@ export default function NewDeal() {
               <button 
                 type="button"
                 onClick={() => router.push('/dashboard')}
-                className="flex-1 bg-white text-slate-700 px-6 py-3 rounded-md border border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500 font-medium transition-colors"
+                className="flex-1 bg-white text-slate-700 px-6 py-3 rounded border border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500 font-medium "
               >
                 Cancel
               </button>
               <button 
                 type="submit" 
                 disabled={loading} 
-                className="flex-1 bg-slate-900 text-white px-6 py-3 rounded-md hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+                className="flex-1 bg-slate-900 text-white px-6 py-3 rounded hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium "
               >
                 {loading ? 'Creating...' : 'Create Deal'}
               </button>
@@ -2112,7 +2089,7 @@ function Input({ label, pattern, title, ...props }) {
         {...props} 
         pattern={pattern}
         title={title}
-        className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-colors" 
+        className="w-full px-3 py-2 border border-slate-300 rounded  placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 " 
       />
     </div>
   );
@@ -2120,13 +2097,13 @@ function Input({ label, pattern, title, ...props }) {
 
 function DynamicSection({ title, items, onAdd, onRemove, render }) {
   return (
-    <section className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900 mb-6 pb-3 border-b border-slate-200">
+    <section className="bg-white rounded border border-slate-200 p-6 ">
+      <h2 className="text-lg font-medium text-slate-900 mb-6 pb-3 border-b border-slate-200">
         {title}
       </h2>
       <div className="space-y-6">
         {items.map((item, idx) => (
-          <div key={idx} className="bg-slate-50 border border-slate-200 rounded-lg p-6">
+          <div key={idx} className="bg-slate-50 border border-slate-200 rounded p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-4">
               {render(item, idx)}
             </div>
@@ -2135,7 +2112,7 @@ function DynamicSection({ title, items, onAdd, onRemove, render }) {
                 <button 
                   type="button" 
                   onClick={() => onRemove(idx)} 
-                  className="text-red-600 hover:text-red-800 text-sm font-medium transition-colors px-3 py-1 rounded border border-red-300 hover:border-red-400"
+                  className="text-red-600 hover:text-red-800 text-sm font-medium  px-3 py-1 rounded border border-red-300 hover:border-red-400"
                 >
                   Remove {title.slice(0, -1)}
                 </button>
@@ -2146,7 +2123,7 @@ function DynamicSection({ title, items, onAdd, onRemove, render }) {
         <button 
           type="button" 
           onClick={onAdd} 
-          className="w-full border-2 border-dashed border-slate-300 rounded-lg p-4 text-slate-600 hover:border-slate-400 hover:text-slate-700 font-medium transition-colors"
+          className="w-full border-2 border-dashed border-slate-300 rounded p-4 text-slate-600 hover:border-slate-400 hover:text-slate-700 font-medium "
         >
           + Add {title.slice(0, -1)}
         </button>
@@ -2157,15 +2134,15 @@ function DynamicSection({ title, items, onAdd, onRemove, render }) {
 
 function AdditionalDocsField({ additionalDocs, onAdd, onRemove, onUpdateName, onUpdateFiles, onRemoveFile }) {
   return (
-    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+    <div className="bg-slate-50 border border-slate-200 rounded p-4">
       <div className="mb-3">
-        <h3 className="text-sm font-semibold text-slate-900 mb-1">Additional Documents</h3>
+        <h3 className="text-sm font-medium text-slate-900 mb-1">Additional Documents</h3>
         <p className="text-xs text-slate-600">Add custom named documents (up to 5)</p>
       </div>
       
       <div className="space-y-4">
         {additionalDocs.map((doc, docIndex) => (
-          <div key={docIndex} className="bg-white border border-slate-200 rounded-lg p-4">
+          <div key={docIndex} className="bg-white border border-slate-200 rounded p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex-1 mr-3">
                 <label className="block text-xs font-medium text-slate-700 mb-1">
@@ -2176,7 +2153,7 @@ function AdditionalDocsField({ additionalDocs, onAdd, onRemove, onUpdateName, on
                   value={doc.name}
                   onChange={(e) => onUpdateName(docIndex, e.target.value)}
                   placeholder="e.g., NOC Certificate, Power of Attorney"
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
                   required
                 />
               </div>
@@ -2207,7 +2184,7 @@ function AdditionalDocsField({ additionalDocs, onAdd, onRemove, onUpdateName, on
                 />
                 <label
                   htmlFor={`additional-upload-${docIndex}`}
-                  className="w-full bg-slate-100 border border-slate-300 text-slate-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-200 transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full bg-slate-100 border border-slate-300 text-slate-700 px-3 py-2 rounded text-sm font-medium hover:bg-slate-200  cursor-pointer flex items-center justify-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2258,7 +2235,7 @@ function AdditionalDocsField({ additionalDocs, onAdd, onRemove, onUpdateName, on
           <button
             type="button"
             onClick={onAdd}
-            className="w-full border-2 border-dashed border-slate-300 rounded-lg p-3 text-slate-600 hover:border-slate-400 hover:text-slate-700 font-medium transition-colors flex items-center justify-center gap-2"
+            className="w-full border-2 border-dashed border-slate-300 rounded p-3 text-slate-600 hover:border-slate-400 hover:text-slate-700 font-medium  flex items-center justify-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2279,9 +2256,9 @@ function AdditionalDocsField({ additionalDocs, onAdd, onRemove, onUpdateName, on
 
 function DocumentUploadField({ title, description, documents, onChange, onRemove }) {
   return (
-    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+    <div className="bg-slate-50 border border-slate-200 rounded p-4">
       <div className="mb-3">
-        <h3 className="text-sm font-semibold text-slate-900 mb-1">{title}</h3>
+        <h3 className="text-sm font-medium text-slate-900 mb-1">{title}</h3>
         <p className="text-xs text-slate-600">{description}</p>
       </div>
       
@@ -2298,7 +2275,7 @@ function DocumentUploadField({ title, description, documents, onChange, onRemove
           />
           <label
             htmlFor={`upload-${title.replace(/\s+/g, '-').toLowerCase()}`}
-            className="w-full bg-slate-100 border border-slate-300 text-slate-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-slate-200 transition-colors cursor-pointer flex items-center justify-center gap-2"
+            className="w-full bg-slate-100 border border-slate-300 text-slate-700 px-3 py-2 rounded text-sm font-medium hover:bg-slate-200  cursor-pointer flex items-center justify-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
