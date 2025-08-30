@@ -11,7 +11,7 @@ export default function PaymentsPage() {
   const [user, setUser] = useState(null)
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
-  const [ledgerFilters, setLedgerFilters] = useState({ payment_mode: '', party_type: '', party_id: '' })
+  const [ledgerFilters, setLedgerFilters] = useState({ payment_mode: '', party_type: '', party_id: '', payment_type: '' })
   const [ledgerResults, setLedgerResults] = useState([])
   const [uploading, setUploading] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -226,6 +226,13 @@ export default function PaymentsPage() {
                   <option value="owner">Owner</option>
                   <option value="buyer">Buyer</option>
                   <option value="investor">Investor</option>
+                </select>
+                <select value={ledgerFilters.payment_type} onChange={e => setLedgerFilters(prev => ({ ...prev, payment_type: e.target.value }))} className="border rounded px-3 py-2 text-sm h-10 min-w-[140px]">
+                  <option value="">All types</option>
+                  <option value="land_purchase">Land Purchase</option>
+                  <option value="investment_sale">Investment/Sale</option>
+                  <option value="documentation_legal">Documentation & Legal</option>
+                  <option value="other">Other</option>
                 </select>
                 <input placeholder="Party ID" value={ledgerFilters.party_id} onChange={e => setLedgerFilters(prev => ({ ...prev, party_id: e.target.value }))} className="border rounded px-3 py-2 text-sm h-10 w-28" />
                 <button onClick={runLedger} className="flex items-center rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white h-10">Run Ledger</button>

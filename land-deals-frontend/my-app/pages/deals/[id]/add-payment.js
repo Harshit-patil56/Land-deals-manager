@@ -9,7 +9,7 @@ export default function AddPaymentPage() {
   const router = useRouter()
   const { id } = router.query
   const [user, setUser] = useState(null)
-  const [form, setForm] = useState({ amount: '', payment_date: '', payment_mode: '', reference: '', notes: '', status: 'paid', due_date: '' })
+  const [form, setForm] = useState({ amount: '', payment_date: '', payment_mode: '', reference: '', notes: '', status: 'paid', due_date: '', payment_type: 'other' })
   const [customMode, setCustomMode] = useState('')
   const [receiptFile, setReceiptFile] = useState(null)
   const [participants, setParticipants] = useState([])
@@ -330,6 +330,24 @@ export default function AddPaymentPage() {
                   )}
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Payment Type</label>
+                  <select 
+                    name="payment_type" 
+                    value={form.payment_type || ''} 
+                    onChange={handleChange} 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  >
+                    <option value="">Select type</option>
+                    <option value="land_purchase">Land Purchase Payment</option>
+                    <option value="investment_sale">Investment/Sale Payment</option>
+                    <option value="documentation_legal">Documentation & Legal Fees</option>
+                    <option value="other">Other Payment</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
                   <div className="flex items-center space-x-4 mt-2">
