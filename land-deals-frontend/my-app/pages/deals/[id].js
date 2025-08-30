@@ -135,7 +135,7 @@ export default function DealDetails() {
               <span
                 className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold ${
                   status === 'open'
-                    ? 'bg-emerald-100 text-emerald-800'
+                    ? 'bg-slate-100 text-slate-800'
                     : 'bg-slate-100 text-slate-700'
                 }`}
               >
@@ -262,6 +262,10 @@ export default function DealDetails() {
                   <div className="flex justify-between items-center py-2">
                     <span className="text-sm text-slate-600">Investors</span>
                     <span className="text-sm font-medium text-slate-900">{investors.length}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-sm text-slate-600">Buyers</span>
+                    <span className="text-sm font-medium text-slate-900">{buyers.length}</span>
                   </div>
                   <div className="flex justify-between items-center py-2">
                     <span className="text-sm text-slate-600">Expenses</span>
@@ -486,7 +490,8 @@ export default function DealDetails() {
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
                           <th className="text-left py-4 px-4 font-semibold text-slate-700 text-sm">Name</th>
-                          <th className="text-left py-4 px-4 font-semibold text-slate-700 text-sm">Photo URL</th>
+                          <th className="text-left py-4 px-4 font-semibold text-slate-700 text-sm">Phone</th>
+                          <th className="text-left py-4 px-4 font-semibold text-slate-700 text-sm">Email</th>
                           <th className="text-left py-4 px-4 font-semibold text-slate-700 text-sm">Aadhar Card</th>
                           <th className="text-left py-4 px-4 font-semibold text-slate-700 text-sm">PAN Card</th>
                         </tr>
@@ -495,7 +500,8 @@ export default function DealDetails() {
                         {owners.map((owner, index) => (
                           <tr key={owner.id || index} className="hover:bg-slate-50">
                             <td className="py-4 px-4 text-sm font-medium text-slate-900">{owner.name || 'Not specified'}</td>
-                            <td className="py-4 px-4 text-sm text-slate-600">{owner.photo || 'Not provided'}</td>
+                            <td className="py-4 px-4 text-sm text-slate-600">{owner.phone || owner.mobile || 'Not provided'}</td>
+                            <td className="py-4 px-4 text-sm text-slate-600">{owner.email || 'Not provided'}</td>
                             <td className="py-4 px-4 text-sm text-slate-600">{owner.aadhar_card || 'Not provided'}</td>
                             <td className="py-4 px-4 text-sm text-slate-600">{owner.pan_card || 'Not provided'}</td>
                           </tr>
@@ -537,7 +543,8 @@ export default function DealDetails() {
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
                           <th className="text-left py-4 px-4 font-semibold text-slate-700 text-sm">Name</th>
-                          <th className="text-left py-4 px-4 font-semibold text-slate-700 text-sm">Photo URL</th>
+                          <th className="text-left py-4 px-4 font-semibold text-slate-700 text-sm">Phone</th>
+                          <th className="text-left py-4 px-4 font-semibold text-slate-700 text-sm">Email</th>
                           <th className="text-left py-4 px-4 font-semibold text-slate-700 text-sm">Aadhar Card</th>
                           <th className="text-left py-4 px-4 font-semibold text-slate-700 text-sm">PAN Card</th>
                         </tr>
@@ -546,7 +553,8 @@ export default function DealDetails() {
                         {buyers.map((buyer, index) => (
                           <tr key={buyer.id || index} className="hover:bg-slate-50">
                             <td className="py-4 px-4 text-sm font-medium text-slate-900">{buyer.name || 'Not specified'}</td>
-                            <td className="py-4 px-4 text-sm text-slate-600">{buyer.photo || 'Not provided'}</td>
+                            <td className="py-4 px-4 text-sm text-slate-600">{buyer.phone || buyer.mobile || 'Not provided'}</td>
+                            <td className="py-4 px-4 text-sm text-slate-600">{buyer.email || 'Not provided'}</td>
                             <td className="py-4 px-4 text-sm text-slate-600">{buyer.aadhar_card || 'Not provided'}</td>
                             <td className="py-4 px-4 text-sm text-slate-600">{buyer.pan_card || 'Not provided'}</td>
                           </tr>
@@ -599,10 +607,10 @@ export default function DealDetails() {
                       <tbody className="divide-y divide-slate-100">
                         {investors.map((inv, index) => (
                           <tr key={inv.id || index} className="hover:bg-slate-50">
-                            <td className="py-4 px-4 text-sm font-medium text-slate-900">{inv.investor_name || 'Not specified'}</td>
+                            <td className="py-4 px-4 text-sm font-medium text-slate-900">{inv.investor_name || inv.name || 'Not specified'}</td>
                             <td className="py-4 px-4 text-sm font-bold text-blue-600">₹{inv.investment_amount?.toLocaleString('en-IN') || '0'}</td>
-                            <td className="py-4 px-4 text-sm text-slate-600">{inv.investment_percentage}% || 'Not set'</td>
-                            <td className="py-4 px-4 text-sm text-slate-600">{inv.phone || 'Not provided'}</td>
+                            <td className="py-4 px-4 text-sm text-slate-600">{inv.investment_percentage ? `${inv.investment_percentage}%` : 'Not set'}</td>
+                            <td className="py-4 px-4 text-sm text-slate-600">{inv.phone || inv.mobile || 'Not provided'}</td>
                             <td className="py-4 px-4 text-sm text-slate-600">{inv.email || 'Not provided'}</td>
                             <td className="py-4 px-4 text-sm text-slate-600">{inv.aadhar_card || 'Not provided'}</td>
                             <td className="py-4 px-4 text-sm text-slate-600">{inv.pan_card || 'Not provided'}</td>

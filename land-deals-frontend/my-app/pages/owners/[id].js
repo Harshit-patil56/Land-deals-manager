@@ -44,7 +44,6 @@ export default function OwnerDetail() {
         : Object.values(response.data.documents || {}).flat();
       
       setDocuments(documentsArray);
-      console.log('Final documents set:', documentsArray);
     } catch (error) {
       console.error('Error fetching owner details:', error);
       if (error.response?.status === 404) {

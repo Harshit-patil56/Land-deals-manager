@@ -1,13 +1,14 @@
 import { useRouter } from 'next/router'
 import { useEffect, useState, useCallback } from 'react'
 import { paymentsAPI } from '../../lib/api'
-import { getToken } from '../../lib/auth'
+import { getToken, getUser, logout } from '../../lib/auth'
 import toast from 'react-hot-toast'
 import Navbar from '../../components/layout/Navbar'
 
 export default function PaymentsPage() {
   const router = useRouter()
   const { id } = router.query
+  const [user, setUser] = useState(null)
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [ledgerFilters, setLedgerFilters] = useState({ payment_mode: '', party_type: '', party_id: '' })
@@ -16,6 +17,16 @@ export default function PaymentsPage() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => setMounted(true), [])
+
+  useEffect(() => {
+    setUser(getUser())
+  }, [])
+
+  const handleLogout = () => {
+    logout()
+    toast.success('Logged out successfully')
+    router.push('/login')
+  }
 
   const isAuthed = mounted && !!getToken()
 
@@ -148,7 +159,7 @@ export default function PaymentsPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="bg-slate-50 border-b border-slate-200 w-full">
-        <Navbar />
+        <Navbar user={user} onLogout={handleLogout} />
       </div>
 
       <div className="bg-white border-b border-slate-200 w-full">
@@ -161,7 +172,7 @@ export default function PaymentsPage() {
             <div className="flex items-center gap-3">
               <button 
                 onClick={() => router.push(`/deals/${id}`)} 
-                className="inline-flex items-center rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200 transition-colors border border-slate-300"
+                className="flex items-center rounded bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200  border border-slate-300"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -176,15 +187,15 @@ export default function PaymentsPage() {
       <div className="max-w-7xl mx-auto py-8 px-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
-              <h3 className="text-lg font-semibold mb-4 text-slate-900">Add Payment</h3>
+            <div className="bg-white rounded border border-slate-200 p-6">
+              <h3 className="text-lg font-medium mb-4 text-slate-900">Add Payment</h3>
               {!isAuthed ? (
                 <div className="text-sm text-slate-600">Please log in to add payments.</div>
               ) : (
                 <div>
                   <button 
                     onClick={() => router.push(`/deals/${id}/add-payment`)} 
-                    className="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition-colors"
+                    className="flex items-center rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 "
                   >
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -197,11 +208,11 @@ export default function PaymentsPage() {
           </div>
 
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
+            <div className="bg-white rounded border border-slate-200 p-6">
             <div className="flex items-start justify-between">
-              <h3 className="text-lg font-semibold mb-4">Payments</h3>
+              <h3 className="text-lg font-medium mb-4">Payments</h3>
               <div className="flex flex-wrap items-center gap-3">
-                <select value={ledgerFilters.payment_mode} onChange={e => setLedgerFilters(prev => ({ ...prev, payment_mode: e.target.value }))} className="border rounded-md px-3 py-2 text-sm h-10 min-w-[140px]">
+                <select value={ledgerFilters.payment_mode} onChange={e => setLedgerFilters(prev => ({ ...prev, payment_mode: e.target.value }))} className="border rounded px-3 py-2 text-sm h-10 min-w-[140px]">
                   <option value="">All modes</option>
                   <option value="UPI">UPI</option>
                   <option value="NEFT">NEFT</option>
@@ -210,19 +221,19 @@ export default function PaymentsPage() {
                   <option value="Cash">Cash</option>
                   <option value="Cheque">Cheque</option>
                 </select>
-                <select value={ledgerFilters.party_type} onChange={e => setLedgerFilters(prev => ({ ...prev, party_type: e.target.value }))} className="border rounded-md px-3 py-2 text-sm h-10 min-w-[140px]">
+                <select value={ledgerFilters.party_type} onChange={e => setLedgerFilters(prev => ({ ...prev, party_type: e.target.value }))} className="border rounded px-3 py-2 text-sm h-10 min-w-[140px]">
                   <option value="">All parties</option>
                   <option value="owner">Owner</option>
                   <option value="buyer">Buyer</option>
                   <option value="investor">Investor</option>
                 </select>
-                <input placeholder="Party ID" value={ledgerFilters.party_id} onChange={e => setLedgerFilters(prev => ({ ...prev, party_id: e.target.value }))} className="border rounded-md px-3 py-2 text-sm h-10 w-28" />
-                <button onClick={runLedger} className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white h-10">Run Ledger</button>
-                <button onClick={exportLedgerCSV} className="inline-flex items-center rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-900 ring-1 ring-inset ring-slate-200 hover:bg-slate-50 h-10">Export CSV</button>
-                <button onClick={downloadServerCsv} disabled={!isAuthed} title={!isAuthed ? 'Login required to download server CSV' : 'Download CSV from server'} className={`inline-flex items-center rounded-md px-4 py-2 text-sm font-medium h-10 ${isAuthed ? 'bg-white text-slate-900 ring-1 ring-inset ring-slate-200 hover:bg-slate-50' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
+                <input placeholder="Party ID" value={ledgerFilters.party_id} onChange={e => setLedgerFilters(prev => ({ ...prev, party_id: e.target.value }))} className="border rounded px-3 py-2 text-sm h-10 w-28" />
+                <button onClick={runLedger} className="flex items-center rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white h-10">Run Ledger</button>
+                <button onClick={exportLedgerCSV} className="flex items-center rounded bg-white px-4 py-2 text-sm font-medium text-slate-900 ring-1 ring-inset ring-slate-200 hover:bg-slate-50 h-10">Export CSV</button>
+                <button onClick={downloadServerCsv} disabled={!isAuthed} title={!isAuthed ? 'Login required to download server CSV' : 'Download CSV from server'} className={`flex items-center rounded px-4 py-2 text-sm font-medium h-10 ${isAuthed ? 'bg-white text-slate-900 ring-1 ring-inset ring-slate-200 hover:bg-slate-50' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
                   Download CSV (server)
                 </button>
-                <button onClick={downloadServerPdf} disabled={!isAuthed} title={!isAuthed ? 'Login required to download server PDF' : 'Download PDF from server'} className={`inline-flex items-center rounded-md px-4 py-2 text-sm font-medium h-10 ${isAuthed ? 'bg-white text-slate-900 ring-1 ring-inset ring-slate-200 hover:bg-slate-50' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
+                <button onClick={downloadServerPdf} disabled={!isAuthed} title={!isAuthed ? 'Login required to download server PDF' : 'Download PDF from server'} className={`flex items-center rounded px-4 py-2 text-sm font-medium h-10 ${isAuthed ? 'bg-white text-slate-900 ring-1 ring-inset ring-slate-200 hover:bg-slate-50' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
                   Download PDF (server)
                 </button>
               </div>
@@ -240,12 +251,12 @@ export default function PaymentsPage() {
             ) : (
               <div className="space-y-4">
                 {payments.map(p => (
-                  <div key={p.id} className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
+                  <div key={p.id} className="bg-white rounded border border-slate-200 p-4 ">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
                           <div>
-                            <h4 className="text-sm font-semibold text-slate-900">₹{Number(p.amount).toLocaleString()} <span className="text-xs font-normal text-slate-500">{p.currency || 'INR'}</span></h4>
+                            <h4 className="text-sm font-medium text-slate-900">₹{Number(p.amount).toLocaleString()} <span className="text-xs font-normal text-slate-500">{p.currency || 'INR'}</span></h4>
                             <div className="text-xs text-slate-500">{p.payment_date?.split('T')[0] || p.payment_date} • ID: #{p.id}</div>
                             {p.reference && <div className="text-xs text-slate-500">Reference: {p.reference}</div>}
                           </div>
@@ -271,11 +282,11 @@ export default function PaymentsPage() {
                         </div>
                       </div>
                       <div className="flex-shrink-0 w-36 flex flex-col items-end gap-2">
-                        <button onClick={() => annotate(p.id)} className="w-full inline-flex justify-center rounded-md bg-white px-3 py-1 text-sm font-medium text-slate-700 ring-1 ring-inset ring-slate-200 hover:bg-slate-50">Annotate</button>
-                        <button onClick={() => router.push(`/deals/${id}/payment/${p.id}`)} className="w-full inline-flex justify-center rounded-md bg-white px-3 py-1 text-sm font-medium text-indigo-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50">View proofs</button>
-                        <label className="w-full inline-flex items-center justify-center cursor-pointer">
+                        <button onClick={() => annotate(p.id)} className="w-full inline-flex justify-center rounded bg-white px-3 py-1 text-sm font-medium text-slate-700 ring-1 ring-inset ring-slate-200 hover:bg-slate-50">Annotate</button>
+                        <button onClick={() => router.push(`/deals/${id}/payment/${p.id}`)} className="w-full inline-flex justify-center rounded bg-white px-3 py-1 text-sm font-medium text-indigo-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50">View proofs</button>
+                        <label className="w-full flex items-center justify-center cursor-pointer">
                           <input type="file" className="hidden" onChange={(e) => handleProofUpload(p.id, e.target.files[0])} />
-                          <span className={`w-full inline-flex justify-center rounded-md px-3 py-1 text-sm font-medium ${uploading ? 'bg-slate-500 text-slate-200' : 'bg-white text-slate-900'} ring-1 ring-inset ring-slate-200 hover:bg-slate-50`}>{uploading ? 'Uploading...' : 'Upload Proof'}</span>
+                          <span className={`w-full inline-flex justify-center rounded px-3 py-1 text-sm font-medium ${uploading ? 'bg-slate-500 text-slate-200' : 'bg-white text-slate-900'} ring-1 ring-inset ring-slate-200 hover:bg-slate-50`}>{uploading ? 'Uploading...' : 'Upload Proof'}</span>
                         </label>
                         <button onClick={async () => {
                           if (!confirm('Delete this payment and its proofs?')) return
@@ -286,7 +297,7 @@ export default function PaymentsPage() {
                           } catch {
                             toast.error('Delete failed')
                           }
-                        }} className="w-full inline-flex justify-center rounded-md bg-white px-3 py-1 text-sm font-medium text-red-600 ring-1 ring-inset ring-slate-200 hover:bg-red-50">Delete</button>
+                        }} className="w-full inline-flex justify-center rounded bg-white px-3 py-1 text-sm font-medium text-red-600 ring-1 ring-inset ring-slate-200 hover:bg-red-50">Delete</button>
                       </div>
                     </div>
                   </div>
@@ -296,7 +307,7 @@ export default function PaymentsPage() {
 
             {ledgerResults.length > 0 && (
               <div className="mt-6">
-                <h4 className="text-md font-semibold mb-2">Ledger Results ({ledgerResults.length})</h4>
+                <h4 className="text-md font-medium mb-2">Ledger Results ({ledgerResults.length})</h4>
                 <div className="space-y-3">
                   {ledgerResults.map(r => (
                     <div key={`l-${r.id}`} className="bg-white p-3 rounded border">

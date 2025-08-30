@@ -114,7 +114,7 @@ export default function NewOwner() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Navigation - Full Width */}
-      <div className="bg-white shadow-sm border-b border-slate-200 w-full">
+      <div className="bg-white  border-b border-slate-200 w-full">
         <Navbar user={user} onLogout={handleLogout} />
       </div>
 
@@ -123,13 +123,13 @@ export default function NewOwner() {
         <div className="px-6 py-8">
           <div className="flex items-center">
             <Link href="/owners">
-              <span className="mr-4 p-2 hover:bg-slate-200 rounded-lg transition-colors duration-200 cursor-pointer">
+              <span className="mr-4 p-2 hover:bg-slate-200 rounded  duration-200 cursor-pointer">
                 <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
               </span>
             </Link>
-            <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center mr-4">
+            <div className="w-12 h-12 bg-slate-100 rounded flex items-center justify-center mr-4">
               <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
@@ -150,9 +150,9 @@ export default function NewOwner() {
           <div className="xl:col-span-1 space-y-6">
             
             {/* Form Guidelines */}
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+            <div className="bg-white rounded  border border-slate-200">
               <div className="px-6 py-5 border-b border-slate-200 bg-slate-50">
-                <h3 className="text-lg font-semibold text-slate-900 flex items-center">
+                <h3 className="text-lg font-medium text-slate-900 flex items-center">
                   <svg className="w-5 h-5 text-slate-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -195,9 +195,9 @@ export default function NewOwner() {
             </div>
 
             {/* Available Projects */}
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+            <div className="bg-white rounded  border border-slate-200">
               <div className="px-6 py-5 border-b border-slate-200 bg-slate-50">
-                <h3 className="text-lg font-semibold text-slate-900 flex items-center">
+                <h3 className="text-lg font-medium text-slate-900 flex items-center">
                   <svg className="w-5 h-5 text-slate-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
@@ -230,9 +230,9 @@ export default function NewOwner() {
             </div>
 
             {/* Progress Indicator */}
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+            <div className="bg-white rounded  border border-slate-200">
               <div className="px-6 py-5 border-b border-slate-200 bg-slate-50">
-                <h3 className="text-lg font-semibold text-slate-900">Form Progress</h3>
+                <h3 className="text-lg font-medium text-slate-900">Form Progress</h3>
               </div>
               <div className="p-6">
                 <div className="space-y-3">
@@ -259,7 +259,7 @@ export default function NewOwner() {
 
           {/* Main Form Content - Takes 3/4 of the width */}
           <div className="xl:col-span-3">
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+            <div className="bg-white rounded  border border-slate-200">
               
               {/* Form Header */}
               <div className="px-6 py-5 border-b border-slate-200 bg-slate-50">
@@ -269,7 +269,7 @@ export default function NewOwner() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                     <div>
-                      <h2 className="text-xl font-semibold text-slate-900">Owner Registration Form</h2>
+                      <h2 className="text-xl font-medium text-slate-900">Owner Registration Form</h2>
                       <p className="text-sm text-slate-600 mt-1">Complete all sections to register a new property owner</p>
                     </div>
                   </div>
@@ -285,7 +285,7 @@ export default function NewOwner() {
               <form onSubmit={handleSubmit} className="p-6">
                 {/* Error Alert */}
                 {errors.submit && (
-                  <div className="mb-8 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
+                  <div className="mb-8 p-4 bg-red-50 border border-red-200 rounded flex items-center">
                     <svg className="w-5 h-5 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
@@ -298,17 +298,17 @@ export default function NewOwner() {
                   {/* Section 1: Basic Information */}
                   <div>
                     <div className="flex items-center mb-6">
-                      <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center mr-4">
+                      <div className="w-10 h-10 bg-slate-900 rounded flex items-center justify-center mr-4">
                         <span className="text-white font-bold">1</span>
                       </div>
                       <div>
-                        <h3 className="text-xl font-semibold text-slate-900">Basic Information</h3>
+                        <h3 className="text-xl font-medium text-slate-900">Basic Information</h3>
                         <p className="text-sm text-slate-600 mt-1">Essential details about the property owner</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pl-14">
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-3">
+                        <label className="block text-sm font-medium text-slate-700 mb-3">
                           Full Name <span className="text-red-500">*</span>
                         </label>
                         <input
@@ -316,7 +316,7 @@ export default function NewOwner() {
                           name="name"
                           value={form.name}
                           onChange={handleChange}
-                          className={`w-full px-4 py-4 border rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 text-lg ${
+                          className={`w-full px-4 py-4 border rounded focus:ring-2 focus:ring-slate-500 focus:border-slate-500  text-lg ${
                             errors.name ? 'border-red-300 bg-red-50' : 'border-slate-300'
                           }`}
                           placeholder="Enter owner's full legal name"
@@ -333,14 +333,14 @@ export default function NewOwner() {
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-3">
+                        <label className="block text-sm font-medium text-slate-700 mb-3">
                           Select Associated Project <span className="text-red-500">*</span>
                         </label>
                         <select
                           name="deal_id"
                           value={form.deal_id}
                           onChange={handleChange}
-                          className={`w-full px-4 py-4 border rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white transition-all duration-200 text-lg ${
+                          className={`w-full px-4 py-4 border rounded focus:ring-2 focus:ring-slate-500 focus:border-slate-500 bg-white  text-lg ${
                             errors.deal_id ? 'border-red-300 bg-red-50' : 'border-slate-300'
                           }`}
                           required
@@ -367,17 +367,17 @@ export default function NewOwner() {
                   {/* Section 2: Contact Information */}
                   <div>
                     <div className="flex items-center mb-6">
-                      <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center mr-4">
+                      <div className="w-10 h-10 bg-slate-900 rounded flex items-center justify-center mr-4">
                         <span className="text-white font-bold">2</span>
                       </div>
                       <div>
-                        <h3 className="text-xl font-semibold text-slate-900">Contact Information</h3>
+                        <h3 className="text-xl font-medium text-slate-900">Contact Information</h3>
                         <p className="text-sm text-slate-600 mt-1">Communication details for the owner</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pl-14">
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-3">
+                        <label className="block text-sm font-medium text-slate-700 mb-3">
                           Mobile Number
                         </label>
                         <div className="relative">
@@ -391,7 +391,7 @@ export default function NewOwner() {
                             name="mobile"
                             value={form.mobile}
                             onChange={handleChange}
-                            className={`w-full pl-12 pr-4 py-4 border rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 text-lg ${
+                            className={`w-full pl-12 pr-4 py-4 border rounded focus:ring-2 focus:ring-slate-500 focus:border-slate-500  text-lg ${
                               errors.mobile ? 'border-red-300 bg-red-50' : 'border-slate-300'
                             }`}
                             placeholder="10-digit mobile number"
@@ -409,7 +409,7 @@ export default function NewOwner() {
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-3">
+                        <label className="block text-sm font-medium text-slate-700 mb-3">
                           Email Address
                         </label>
                         <div className="relative">
@@ -423,7 +423,7 @@ export default function NewOwner() {
                             name="email"
                             value={form.email}
                             onChange={handleChange}
-                            className={`w-full pl-12 pr-4 py-4 border rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 text-lg ${
+                            className={`w-full pl-12 pr-4 py-4 border rounded focus:ring-2 focus:ring-slate-500 focus:border-slate-500  text-lg ${
                               errors.email ? 'border-red-300 bg-red-50' : 'border-slate-300'
                             }`}
                             placeholder="Enter email address"
@@ -444,17 +444,17 @@ export default function NewOwner() {
                   {/* Section 3: Document Information */}
                   <div>
                     <div className="flex items-center mb-6">
-                      <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center mr-4">
+                      <div className="w-10 h-10 bg-slate-900 rounded flex items-center justify-center mr-4">
                         <span className="text-white font-bold">3</span>
                       </div>
                       <div>
-                        <h3 className="text-xl font-semibold text-slate-900">Document Information</h3>
+                        <h3 className="text-xl font-medium text-slate-900">Document Information</h3>
                         <p className="text-sm text-slate-600 mt-1">Government identification documents</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pl-14">
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-3">
+                        <label className="block text-sm font-medium text-slate-700 mb-3">
                           Aadhar Card Number
                         </label>
                         <div className="relative">
@@ -468,7 +468,7 @@ export default function NewOwner() {
                             name="aadhar_card"
                             value={form.aadhar_card}
                             onChange={handleChange}
-                            className={`w-full pl-12 pr-4 py-4 border rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 text-lg ${
+                            className={`w-full pl-12 pr-4 py-4 border rounded focus:ring-2 focus:ring-slate-500 focus:border-slate-500  text-lg ${
                               errors.aadhar_card ? 'border-red-300 bg-red-50' : 'border-slate-300'
                             }`}
                             placeholder="12-digit Aadhar number"
@@ -486,7 +486,7 @@ export default function NewOwner() {
                       </div>
                       
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-3">
+                        <label className="block text-sm font-medium text-slate-700 mb-3">
                           PAN Card Number
                         </label>
                         <div className="relative">
@@ -500,7 +500,7 @@ export default function NewOwner() {
                             name="pan_card"
                             value={form.pan_card}
                             onChange={handleChange}
-                            className={`w-full pl-12 pr-4 py-4 border rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 text-lg uppercase ${
+                            className={`w-full pl-12 pr-4 py-4 border rounded focus:ring-2 focus:ring-slate-500 focus:border-slate-500  text-lg uppercase ${
                               errors.pan_card ? 'border-red-300 bg-red-50' : 'border-slate-300'
                             }`}
                             placeholder="PAN card number (e.g., ABCDE1234F)"
@@ -522,16 +522,16 @@ export default function NewOwner() {
                   {/* Section 4: Address Information */}
                   <div>
                     <div className="flex items-center mb-6">
-                      <div className="w-10 h-10 bg-slate-900 rounded-lg flex items-center justify-center mr-4">
+                      <div className="w-10 h-10 bg-slate-900 rounded flex items-center justify-center mr-4">
                         <span className="text-white font-bold">4</span>
                       </div>
                       <div>
-                        <h3 className="text-xl font-semibold text-slate-900">Address Information</h3>
+                        <h3 className="text-xl font-medium text-slate-900">Address Information</h3>
                         <p className="text-sm text-slate-600 mt-1">Complete residential address details</p>
                       </div>
                     </div>
                     <div className="pl-14">
-                      <label className="block text-sm font-semibold text-slate-700 mb-3">
+                      <label className="block text-sm font-medium text-slate-700 mb-3">
                         Complete Address
                       </label>
                       <div className="relative">
@@ -546,7 +546,7 @@ export default function NewOwner() {
                           value={form.address}
                           onChange={handleChange}
                           rows="5"
-                          className="w-full pl-12 pr-4 py-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all duration-200 resize-none text-lg"
+                          className="w-full pl-12 pr-4 py-4 border border-slate-300 rounded focus:ring-2 focus:ring-slate-500 focus:border-slate-500  resize-none text-lg"
                           placeholder="Enter complete address including:&#10;House/Flat number, Street/Road name&#10;Area/Locality, City&#10;State, PIN code"
                         />
                       </div>
@@ -564,7 +564,7 @@ export default function NewOwner() {
                   </div>
                   <div className="flex items-center space-x-4">
                     <Link href="/owners">
-                      <span className="inline-flex items-center px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-all duration-200 font-semibold cursor-pointer">
+                      <span className="flex items-center px-6 py-3 border border-slate-300 text-slate-700 rounded hover:bg-slate-50  font-medium cursor-pointer">
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -574,7 +574,7 @@ export default function NewOwner() {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="inline-flex items-center px-8 py-3 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white rounded-lg font-semibold transition-all duration-200 shadow-sm text-lg"
+                      className="flex items-center px-8 py-3 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white rounded font-medium   text-lg"
                     >
                       {loading ? (
                         <>

@@ -1,13 +1,14 @@
 import { useRouter } from 'next/router'
 import { useEffect, useState, useRef } from 'react'
 import { paymentsAPI, dealAPI } from '../../../lib/api'
-import { getToken } from '../../../lib/auth'
+import { getToken, getUser, logout } from '../../../lib/auth'
 import toast from 'react-hot-toast'
 import Navbar from '../../../components/layout/Navbar'
 
 export default function AddPaymentPage() {
   const router = useRouter()
   const { id } = router.query
+  const [user, setUser] = useState(null)
   const [form, setForm] = useState({ amount: '', payment_date: '', payment_mode: '', reference: '', notes: '', status: 'paid', due_date: '' })
   const [customMode, setCustomMode] = useState('')
   const [receiptFile, setReceiptFile] = useState(null)
@@ -24,6 +25,16 @@ export default function AddPaymentPage() {
 
   useEffect(() => setMounted(true), [])
   useEffect(() => { if (amountRef.current) amountRef.current.focus() }, [amountRef, mounted])
+
+  useEffect(() => {
+    setUser(getUser())
+  }, [])
+
+  const handleLogout = () => {
+    logout()
+    toast.success('Logged out successfully')
+    router.push('/login')
+  }
 
   useEffect(() => {
     if (!id) return
@@ -226,48 +237,80 @@ export default function AddPaymentPage() {
   const isAuthed = mounted && !!getToken()
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="bg-slate-50 border-b border-slate-200 w-full">
-        <Navbar />
+    <div className="min-h-screen w-full bg-slate-50 flex flex-col">
+      {/* Navigation - Full Width */}
+      <div className="bg-white shadow-sm border-b border-slate-200 w-full">
+        <Navbar user={user} onLogout={handleLogout} />
       </div>
 
-      <div className="max-w-3xl mx-auto py-8 px-6">
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900">Add Payment</h2>
-              <p className="text-sm text-slate-500 mt-1">Record a new payment for deal #{id}</p>
+      {/* Page Header - Full Width */}
+      <div className="bg-white border-b border-slate-200 w-full">
+        <div className="px-6 py-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() => router.push({ pathname: '/deals/payments', query: { id } })}
+                className="mr-3 p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </button>
+              <h1 className="text-2xl font-semibold text-slate-900">Add Payment</h1>
             </div>
             <button
               type="button"
               onClick={() => router.push({ pathname: '/deals/payments', query: { id } })}
-              className="inline-flex items-center rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200 transition-colors border border-slate-300"
+              className="px-4 py-2 text-sm border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 rounded-md"
             >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Back to Payments
+              Cancel
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Main Content - Full Width */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="px-6 py-6">
+          <div className="bg-white rounded-lg border border-slate-200 p-6">
           {!isAuthed ? (
             <div className="text-sm text-slate-600">Please log in to add payments.</div>
           ) : (
-            <form onSubmit={submit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <form onSubmit={submit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Amount</label>
-                  <input ref={amountRef} name="amount" value={form.amount} onChange={handleChange} className="mt-1 block w-full border border-slate-200 rounded p-2" />
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
+                  <input 
+                    ref={amountRef} 
+                    name="amount" 
+                    value={form.amount} 
+                    onChange={handleChange} 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500" 
+                    placeholder="Enter amount"
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Payment Date</label>
-                  <input name="payment_date" type="date" value={form.payment_date} onChange={handleChange} className="mt-1 block w-full border border-slate-200 rounded p-2" />
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label>
+                  <input 
+                    name="payment_date" 
+                    type="date" 
+                    value={form.payment_date} 
+                    onChange={handleChange} 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500" 
+                  />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Payment Mode</label>
-                  <select name="payment_mode" value={form.payment_mode || ''} onChange={e => { const v = e.target.value; setForm(prev => ({ ...prev, payment_mode: v })); if (v !== 'other') setCustomMode('') }} className="mt-1 block w-full border border-slate-200 rounded p-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Payment Mode</label>
+                  <select 
+                    name="payment_mode" 
+                    value={form.payment_mode || ''} 
+                    onChange={e => { const v = e.target.value; setForm(prev => ({ ...prev, payment_mode: v })); if (v !== 'other') setCustomMode('') }} 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                  >
                     <option value="">Select mode</option>
                     <option value="UPI">UPI</option>
                     <option value="NEFT">NEFT</option>
@@ -277,50 +320,98 @@ export default function AddPaymentPage() {
                     <option value="Cheque">Cheque</option>
                     <option value="other">Other</option>
                   </select>
-                  {form.payment_mode === 'other' && (<input placeholder="Custom mode" value={customMode} onChange={e => setCustomMode(e.target.value)} className="mt-2 border rounded p-2 w-full" />)}
+                  {form.payment_mode === 'other' && (
+                    <input 
+                      placeholder="Specify payment mode" 
+                      value={customMode} 
+                      onChange={e => setCustomMode(e.target.value)} 
+                      className="mt-2 w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500" 
+                    />
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Status</label>
-                  <div className="mt-1 flex items-center gap-4">
-                    <label className="inline-flex items-center"><input type="radio" name="status" value="paid" checked={form.status === 'paid'} onChange={() => setForm(prev => ({ ...prev, status: 'paid' }))} className="mr-2" />Paid</label>
-                    <label className="inline-flex items-center"><input type="radio" name="status" value="pending" checked={form.status === 'pending'} onChange={() => setForm(prev => ({ ...prev, status: 'pending' }))} className="mr-2" />Pending</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                  <div className="flex items-center space-x-4 mt-2">
+                    <label className="inline-flex items-center">
+                      <input 
+                        type="radio" 
+                        name="status" 
+                        value="paid" 
+                        checked={form.status === 'paid'} 
+                        onChange={() => setForm(prev => ({ ...prev, status: 'paid' }))} 
+                        className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-slate-300" 
+                      />
+                      <span className="ml-2 text-sm text-slate-700">Paid</span>
+                    </label>
+                    <label className="inline-flex items-center">
+                      <input 
+                        type="radio" 
+                        name="status" 
+                        value="pending" 
+                        checked={form.status === 'pending'} 
+                        onChange={() => setForm(prev => ({ ...prev, status: 'pending' }))} 
+                        className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-slate-300" 
+                      />
+                      <span className="ml-2 text-sm text-slate-700">Pending</span>
+                    </label>
                   </div>
                   {form.status === 'pending' && (
                     <div className="mt-2">
-                      <label className="block text-sm font-medium text-gray-700">Expected payment date</label>
-                      <input name="due_date" type="date" value={form.due_date} onChange={e => setForm(prev => ({ ...prev, due_date: e.target.value }))} className="mt-1 block w-full border border-slate-200 rounded p-2" />
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Due Date</label>
+                      <input 
+                        name="due_date" 
+                        type="date" 
+                        value={form.due_date} 
+                        onChange={e => setForm(prev => ({ ...prev, due_date: e.target.value }))} 
+                        className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500" 
+                      />
                     </div>
                   )}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Receipt (optional)</label>
-                <input type="file" accept="image/*,.pdf,.jpg,.jpeg,.png" onChange={e => setReceiptFile(e.target.files?.[0] || null)} className="mt-1 block w-full" />
-                {receiptFile && <div className="text-xs text-slate-500 mt-1">Selected: {receiptFile.name}</div>}
+                <label className="block text-sm font-medium text-slate-700 mb-1">Reference</label>
+                <input 
+                  name="reference" 
+                  value={form.reference} 
+                  onChange={handleChange} 
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500" 
+                  placeholder="Transaction reference"
+                />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Reference</label>
-                <input name="reference" value={form.reference} onChange={handleChange} className="mt-1 block w-full border border-slate-200 rounded p-2" />
+                <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                <textarea 
+                  name="notes" 
+                  value={form.notes} 
+                  onChange={handleChange} 
+                  rows={2}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500" 
+                  placeholder="Optional notes"
+                />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Notes</label>
-                <textarea name="notes" value={form.notes} onChange={handleChange} className="mt-1 block w-full border border-slate-200 rounded p-2" />
+                <label className="block text-sm font-medium text-slate-700 mb-1">Receipt</label>
+                <input 
+                  type="file" 
+                  accept="image/*,.pdf" 
+                  onChange={e => setReceiptFile(e.target.files?.[0] || null)} 
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500" 
+                />
+                {receiptFile && <div className="text-xs text-slate-500 mt-1">{receiptFile.name}</div>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Parties</label>
-                <div className="space-y-2 max-h-72 overflow-auto p-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Parties</label>
+                <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm text-slate-600 mb-2">
-                      <div>Total %: <strong>{totalPercentage}%</strong></div>
-                      <div>Party sum: <strong>₹{totalPartiesAmount.toLocaleString()}</strong></div>
+                      <div>Total: {totalPercentage}%</div>
+                      <div>₹{totalPartiesAmount.toLocaleString()}</div>
                     </div>
-                    {computedAmountsPreview && computedAmountsPreview.length > 0 && (
-                      <div className="mb-2 text-sm text-slate-500">Computed amounts from percentages available. Use &quot;Apply computed amounts&quot; to populate party amounts accurately.</div>
-                    )}
                   {parties.map((pt, idx) => (
                     <div key={`p-${idx}`} className="flex items-center gap-2 p-2 border rounded bg-white">
                       <div className="w-24">
@@ -361,14 +452,12 @@ export default function AddPaymentPage() {
                   ))}
                 </div>
 
-                <div className="mt-3 flex gap-2">
-                  <button type="button" onClick={addParty} className="inline-flex items-center rounded-md bg-white px-3 py-1 text-sm font-medium text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">Add party</button>
-                  <button type="button" onClick={splitEqually} className="inline-flex items-center rounded-md bg-white px-3 py-1 text-sm font-medium text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">Split equally</button>
-                  <button type="button" onClick={importParticipants} className="inline-flex items-center rounded-md bg-white px-3 py-1 text-sm font-medium text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">Import participants</button>
-                  <button type="button" onClick={importAndSplitEqual} className="inline-flex items-center rounded-md bg-white px-3 py-1 text-sm font-medium text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">Import & split equally</button>
+                <div className="mt-3 flex gap-2 flex-wrap">
+                  <button type="button" onClick={addParty} className="px-3 py-1 text-sm border border-slate-300 bg-white hover:bg-slate-50 rounded">Add party</button>
+                  <button type="button" onClick={splitEqually} className="px-3 py-1 text-sm border border-slate-300 bg-white hover:bg-slate-50 rounded">Split equally</button>
+                  <button type="button" onClick={importParticipants} className="px-3 py-1 text-sm border border-slate-300 bg-white hover:bg-slate-50 rounded">Import</button>
                   {computedAmountsPreview && computedAmountsPreview.length > 0 && (
                     <button type="button" onClick={() => {
-                      // apply computed amounts to parties where percentage present and manual_amount not set
                       setParties(prev => prev.map((p, i) => {
                         const val = computedAmountsPreview[i]
                         if (typeof val === 'number') {
@@ -376,31 +465,51 @@ export default function AddPaymentPage() {
                         }
                         return p
                       }))
-                    }} className="inline-flex items-center rounded-md bg-slate-900 text-white px-3 py-1 text-sm font-medium hover:bg-slate-800">Apply computed amounts</button>
+                    }} className="px-3 py-1 text-sm bg-slate-900 text-white hover:bg-slate-800 rounded">Apply computed</button>
                   )}
                 </div>
               </div>
 
-              {fieldErrors.form && (<div className="text-sm text-red-600">{fieldErrors.form}</div>)}
+              {fieldErrors.form && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-600">{fieldErrors.form}</p>
+                </div>
+              )}
 
-              <div className="flex items-center justify-between gap-3">
-                <label className="inline-flex items-center text-sm">
-                  <input type="checkbox" checked={forceSave} onChange={e => setForceSave(e.target.checked)} className="mr-2" />
-                  <span className="text-sm">Force save if party sums mismatch</span>
+              <div className="flex items-center justify-between pt-6 border-t border-slate-200">
+                <label className="inline-flex items-center">
+                  <input 
+                    type="checkbox" 
+                    checked={forceSave} 
+                    onChange={e => setForceSave(e.target.checked)} 
+                    className="h-4 w-4 text-slate-600 focus:ring-slate-500 border-slate-300 rounded" 
+                  />
+                  <span className="ml-2 text-sm text-slate-700">Force save if party sums mismatch</span>
                 </label>
-                <div>
-                  <div className="flex items-center">
-                    <button type="button" onClick={() => { if (id) router.push({ pathname: '/deals/payments', query: { id } }); else router.back() }} className="inline-flex items-center rounded-md px-4 py-2 text-sm font-medium border border-slate-300 bg-white text-slate-900 mr-2 hover:bg-slate-50">
-                      Back
-                    </button>
-                    <button type="submit" disabled={saving} className={`inline-flex items-center rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm ${saving ? 'bg-slate-500 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-800'}`}>
-                      {saving ? 'Saving...' : 'Save Payment'}
-                    </button>
-                  </div>
+                <div className="flex items-center space-x-3">
+                  <button 
+                    type="button" 
+                    onClick={() => { if (id) router.push({ pathname: '/deals/payments', query: { id } }); else router.back() }} 
+                    className="px-4 py-2 border border-slate-300 bg-white text-slate-900 rounded hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={saving} 
+                    className={`px-4 py-2 text-white rounded ${
+                      saving 
+                        ? 'bg-slate-400 cursor-not-allowed' 
+                        : 'bg-slate-900 hover:bg-slate-800'
+                    }`}
+                  >
+                    {saving ? 'Saving...' : 'Save payment'}
+                  </button>
                 </div>
               </div>
             </form>
           )}
+          </div>
         </div>
       </div>
     </div>

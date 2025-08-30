@@ -30,7 +30,7 @@ export default function AdminIndex() {
         <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-lg shadow-sm border border-slate-200 mb-6">
           <div className="w-8 h-8 border-3 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
         </div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-2">Redirecting to User Management</h3>
+        <h3 className="text-lg font-medium text-slate-900 mb-2">Redirecting to User Management</h3>
         <p className="text-slate-600">Please wait...</p>
       </div>
     </div>

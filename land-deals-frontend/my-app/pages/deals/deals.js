@@ -54,7 +54,7 @@ export default function DealsPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-lg shadow-sm border border-slate-200 mb-6">
             <div className="w-8 h-8 border-3 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
           </div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Loading Deals</h3>
+          <h3 className="text-lg font-medium text-slate-900 mb-2">Loading Deals</h3>
           <p className="text-slate-600">Please wait while we fetch your deals</p>
         </div>
       </div>
@@ -63,17 +63,17 @@ export default function DealsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Navigation Header */}
-      <div className="bg-white shadow-sm border-b border-slate-200">
+      {/* Navigation - Full Width */}
+      <div className="bg-white  border-b border-slate-200 w-full">
         <Navbar user={user} onLogout={handleLogout} />
       </div>
 
-      {/* Page Header */}
-      <div className="">
+      {/* Page Header - Full Width */}
+      <div className="w-full">
         <div className="px-6 py-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center mr-4">
+              <div className="w-12 h-12 bg-slate-100 rounded flex items-center justify-center mr-4">
                 <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
@@ -86,7 +86,7 @@ export default function DealsPage() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="bg-slate-100 px-3 py-2 rounded-lg">
+              <div className="bg-slate-100 px-3 py-2 rounded">
                 <span className="text-sm font-medium text-slate-700">
                   {deals.length} deal{deals.length !== 1 ? 's' : ''} found
                 </span>
@@ -95,7 +95,7 @@ export default function DealsPage() {
                 user={user}
                 resource="deals"
                 onClick={() => router.push('/deals/new')}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-slate-900 hover:bg-slate-800 transition-colors"
+                className="flex items-center px-6 py-3 bg-slate-900 text-white rounded font-medium hover:bg-slate-800  "
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -103,7 +103,7 @@ export default function DealsPage() {
                 New Deal
               </CreateButton>
               <Link href="/dashboard">
-                <span className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 cursor-pointer transition-colors">
+                <span className="flex items-center px-4 py-2 border border-slate-300 rounded  text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 cursor-pointer ">
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                   </svg>
@@ -118,19 +118,19 @@ export default function DealsPage() {
       {/* Main Content */}
       <div className="w-full px-6 py-8">
         {deals.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-16 text-center">
-            <div className="w-20 h-20 bg-slate-100 rounded-lg mx-auto mb-6 flex items-center justify-center">
+          <div className="bg-white rounded  border border-slate-200 p-16 text-center">
+            <div className="w-20 h-20 bg-slate-100 rounded mx-auto mb-6 flex items-center justify-center">
               <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-slate-900 mb-3">No deals found</h3>
+            <h3 className="text-xl font-medium text-slate-900 mb-3">No deals found</h3>
             <p className="text-slate-600 mb-8">Get started by creating your first property deal to begin tracking your transactions.</p>
             <CreateButton
               user={user}
               resource="deals"
               onClick={() => router.push('/deals/new')}
-              className="inline-flex items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 transition-colors"
+              className="flex items-center px-6 py-3 border border-transparent rounded  text-sm font-medium text-white bg-slate-900 hover:bg-slate-800 "
             >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -143,7 +143,7 @@ export default function DealsPage() {
             {deals.map((deal) => (
               <div
                 key={deal.id}
-                className="bg-white border border-slate-200 rounded-lg hover:shadow-lg hover:border-slate-300 transition-all duration-200"
+                className="bg-white border border-slate-200 rounded hover:shadow-lg hover:border-slate-300 "
               >
                 <Link href={`/deals/${deal.id}`}>
                   <div className="cursor-pointer">
@@ -156,7 +156,7 @@ export default function DealsPage() {
                               {deal.project_name}
                             </h3>
                             <span
-                              className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
+                              className={`flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                                 deal.status === 'open'
                                   ? 'bg-emerald-100 text-emerald-800'
                                   : 'bg-slate-100 text-slate-700'
@@ -197,8 +197,8 @@ export default function DealsPage() {
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
                         
                         {/* Property Details */}
-                        <div className="bg-slate-50 rounded-lg p-4">
-                          <h4 className="font-semibold text-slate-900 mb-3 flex items-center">
+                        <div className="bg-slate-50 rounded p-4">
+                          <h4 className="font-medium text-slate-900 mb-3 flex items-center">
                             <svg className="w-4 h-4 text-slate-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                             </svg>
@@ -229,8 +229,8 @@ export default function DealsPage() {
                         </div>
 
                         {/* Financial Information */}
-                        <div className="bg-emerald-50 rounded-lg p-4">
-                          <h4 className="font-semibold text-slate-900 mb-3 flex items-center">
+                        <div className="bg-emerald-50 rounded p-4">
+                          <h4 className="font-medium text-slate-900 mb-3 flex items-center">
                             <svg className="w-4 h-4 text-emerald-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                             </svg>
@@ -260,7 +260,7 @@ export default function DealsPage() {
                                 </div>
                                 <div className="flex justify-between text-xs text-emerald-600">
                                   <span>Profit/Loss:</span>
-                                  <span className={`font-semibold ${
+                                  <span className={`font-medium ${
                                     (deal.selling_amount - deal.purchase_amount) >= 0 
                                       ? 'text-emerald-700' 
                                       : 'text-red-600'
@@ -344,7 +344,7 @@ export default function DealsPage() {
                           e.stopPropagation()
                           router.push(`/deals/edit/${deal.id}`)
                         }}
-                        className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 rounded-md transition-all duration-200 inline-flex items-center border border-blue-200 hover:border-blue-300"
+                        className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 rounded  flex items-center border border-blue-200 hover:border-blue-300"
                       >
                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -367,7 +367,7 @@ export default function DealsPage() {
                             }
                           }
                         }}
-                        className="text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50 px-4 py-2 rounded-md transition-all duration-200 inline-flex items-center border border-red-200 hover:border-red-300"
+                        className="text-sm font-medium text-red-600 hover:text-red-800 hover:bg-red-50 px-4 py-2 rounded  flex items-center border border-red-200 hover:border-red-300"
                       >
                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

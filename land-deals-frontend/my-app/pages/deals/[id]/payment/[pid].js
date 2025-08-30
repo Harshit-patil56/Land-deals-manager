@@ -3,11 +3,13 @@ import { useRouter } from 'next/router'
 import { useEffect, useState, useCallback } from 'react'
 import Navbar from '../../../../components/layout/Navbar'
 import { paymentsAPI } from '../../../../lib/api'
+import { getUser, logout } from '../../../../lib/auth'
 import toast from 'react-hot-toast'
 
 export default function PaymentDetailPage() {
   const router = useRouter()
   const { id, pid } = router.query
+  const [user, setUser] = useState(null)
   const [payment, setPayment] = useState(null)
   const [proofs, setProofs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -15,6 +17,16 @@ export default function PaymentDetailPage() {
   // track failed images (used to fallback to icon) - used to toggle a CSS class when an image fails
   const [failedImages, setFailedImages] = useState(new Set()) // kept for potential future use
   const [selectedDocType, setSelectedDocType] = useState('receipt')
+
+  useEffect(() => {
+    setUser(getUser())
+  }, [])
+
+  const handleLogout = () => {
+    logout()
+    toast.success('Logged out successfully')
+    router.push('/login')
+  }
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -71,7 +83,7 @@ export default function PaymentDetailPage() {
 
   if (loading) return (
     <div className="min-h-screen bg-slate-50">
-      <div className="bg-slate-50 border-b border-slate-200 w-full"><Navbar/></div>
+      <div className="bg-slate-50 border-b border-slate-200 w-full"><Navbar user={user} onLogout={handleLogout}/></div>
       <div className="max-w-6xl mx-auto py-12 px-6">
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
           <div className="text-slate-600">Loading payment details...</div>
@@ -82,7 +94,7 @@ export default function PaymentDetailPage() {
 
   if (!payment) return (
     <div className="min-h-screen bg-slate-50">
-      <div className="bg-slate-50 border-b border-slate-200 w-full"><Navbar/></div>
+      <div className="bg-slate-50 border-b border-slate-200 w-full"><Navbar user={user} onLogout={handleLogout}/></div>
       <div className="max-w-6xl mx-auto py-12 px-6">
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
           <div className="text-slate-600">Payment not found</div>
@@ -93,7 +105,7 @@ export default function PaymentDetailPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="bg-slate-50 border-b border-slate-200 w-full"><Navbar/></div>
+      <div className="bg-slate-50 border-b border-slate-200 w-full"><Navbar user={user} onLogout={handleLogout}/></div>
       <div className="max-w-6xl mx-auto py-8 px-6">
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
           <div className="flex items-start justify-between mb-6">

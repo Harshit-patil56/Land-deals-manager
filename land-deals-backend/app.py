@@ -2334,11 +2334,12 @@ def get_investors(current_user):
 @app.route('/api/investors/<int:investor_id>', methods=['GET'])
 @token_required
 def get_investor(current_user, investor_id):
-    """Get a specific investor"""
+    """Get a specific investor with their deals and documents"""
     try:
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
         
+        # Get the investor details
         cursor.execute("""
             SELECT i.*, d.project_name as deal_title
             FROM investors i
@@ -2350,7 +2351,20 @@ def get_investor(current_user, investor_id):
         if not investor:
             return jsonify({'error': 'Investor not found'}), 404
         
-        # Format the data
+        # Get all deals this investor is involved in
+        cursor.execute("""
+            SELECT d.*, i.investment_amount, i.investment_percentage
+            FROM deals d
+            INNER JOIN investors i ON d.id = i.deal_id
+            WHERE i.id = %s
+        """, (investor_id,))
+        deals = cursor.fetchall() or []
+        
+        # Get documents for this investor (if any)
+        # Note: You might need to add investor documents table if it doesn't exist
+        documents = []  # For now, empty array since investor documents might not be implemented
+        
+        # Format the investor data
         formatted_investor = {
             'id': investor['id'],
             'deal_id': investor['deal_id'],
@@ -2366,7 +2380,18 @@ def get_investor(current_user, investor_id):
             'created_at': investor['created_at'].isoformat() if investor['created_at'] else None
         }
         
-        return jsonify(formatted_investor)
+        # Convert datetime objects in deals
+        for deal in deals:
+            if deal:
+                for key, value in deal.items():
+                    if isinstance(value, datetime):
+                        deal[key] = value.isoformat()
+        
+        return jsonify({
+            'investor': formatted_investor,
+            'deals': deals,
+            'documents': documents
+        })
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
