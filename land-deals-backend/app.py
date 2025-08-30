@@ -210,7 +210,21 @@ def list_payments(deal_id):
         try:
             party_cursor = conn.cursor(dictionary=True)
             for r in rows:
-                party_cursor.execute("SELECT id, party_type, party_id, amount, percentage FROM payment_parties WHERE payment_id = %s", (r['id'],))
+                # Get payment parties with actual names from related tables
+                party_cursor.execute("""
+                    SELECT pp.id, pp.party_type, pp.party_id, pp.amount, pp.percentage, pp.role,
+                           CASE 
+                               WHEN pp.party_type = 'owner' AND pp.party_id IS NOT NULL THEN 
+                                   (SELECT name FROM owners WHERE id = pp.party_id)
+                               WHEN pp.party_type = 'investor' AND pp.party_id IS NOT NULL THEN 
+                                   (SELECT investor_name FROM investors WHERE id = pp.party_id)
+                               WHEN pp.party_type = 'buyer' AND pp.party_id IS NOT NULL THEN 
+                                   (SELECT name FROM buyers WHERE id = pp.party_id)
+                               ELSE NULL
+                           END as party_name
+                    FROM payment_parties pp 
+                    WHERE pp.payment_id = %s
+                """, (r['id'],))
                 parts = party_cursor.fetchall() or []
                 part_list = []
                 for p in parts:
@@ -218,8 +232,10 @@ def list_payments(deal_id):
                         'id': p.get('id'),
                         'party_type': p.get('party_type'),
                         'party_id': p.get('party_id'),
+                        'party_name': p.get('party_name'),
                         'amount': float(p.get('amount')) if p.get('amount') is not None else None,
-                        'percentage': float(p.get('percentage')) if p.get('percentage') is not None else None
+                        'percentage': float(p.get('percentage')) if p.get('percentage') is not None else None,
+                        'role': p.get('role')
                     })
                 r['parties'] = part_list
         except Exception:
@@ -243,12 +259,19 @@ def payments_ledger_csv(current_user):
     party_type = params.get('party_type')
     party_id = params.get('party_id')
     payment_mode = params.get('payment_mode')
+    payment_type = params.get('payment_type')
+    person_search = params.get('person_search')
     start_date = params.get('start_date')
     end_date = params.get('end_date')
 
     args = []
-    if party_type or party_id:
-        sql = "SELECT DISTINCT p.* FROM payments p JOIN payment_parties pp ON pp.payment_id = p.id WHERE 1=1"
+    if party_type or party_id or person_search:
+        sql = """SELECT DISTINCT p.* FROM payments p 
+                 JOIN payment_parties pp ON pp.payment_id = p.id 
+                 LEFT JOIN owners o ON pp.party_type = 'owner' AND pp.party_id = o.id
+                 LEFT JOIN investors i ON pp.party_type = 'investor' AND pp.party_id = i.id
+                 LEFT JOIN buyers b ON pp.party_type = 'buyer' AND pp.party_id = b.id
+                 WHERE 1=1"""
         if deal_id:
             sql += " AND p.deal_id = %s"
             args.append(deal_id)
@@ -258,6 +281,20 @@ def payments_ledger_csv(current_user):
         if party_id:
             sql += " AND pp.party_id = %s"
             args.append(party_id)
+        if person_search:
+            sql += """ AND (
+                LOWER(o.name) LIKE LOWER(%s) OR 
+                LOWER(i.investor_name) LIKE LOWER(%s) OR 
+                LOWER(b.name) LIKE LOWER(%s)
+            )"""
+            search_term = f"%{person_search}%"
+            args.extend([search_term, search_term, search_term])
+        if payment_mode:
+            sql += " AND p.payment_mode = %s"
+            args.append(payment_mode)
+        if payment_type:
+            sql += " AND p.payment_type = %s"
+            args.append(payment_type)
     else:
         sql = "SELECT p.* FROM payments p WHERE 1=1"
         if deal_id:
@@ -266,6 +303,9 @@ def payments_ledger_csv(current_user):
         if payment_mode:
             sql += " AND p.payment_mode = %s"
             args.append(payment_mode)
+        if payment_type:
+            sql += " AND p.payment_type = %s"
+            args.append(payment_type)
 
     if start_date:
         sql += " AND p.payment_date >= %s"
@@ -287,7 +327,9 @@ def payments_ledger_csv(current_user):
         import io, csv
         buf = io.StringIO()
         w = csv.writer(buf)
-        w.writerow(cols)
+        # add derived payer/payee columns to headers
+        headers = cols + ['payers', 'payees']
+        w.writerow(headers)
         for r in rows:
             row = []
             for v in r:
@@ -295,6 +337,33 @@ def payments_ledger_csv(current_user):
                     row.append(v.isoformat())
                 else:
                     row.append(v)
+            # fetch parties for this payment to derive payer/payee lists
+            try:
+                pc = conn.cursor()
+                pc.execute("SELECT party_type, party_id, party_name, amount, percentage, role FROM payment_parties WHERE payment_id = %s", (r[0],))
+                parts = pc.fetchall() or []
+                payers = []
+                payees = []
+                for pp in parts:
+                    # pp may be tuple; attempt to read role at the last position
+                    role = pp[5] if len(pp) > 5 else None
+                    label = None
+                    # try to use party_name if present in tuple
+                    if len(pp) > 2 and pp[2]:
+                        label = str(pp[2])
+                    elif pp[1]:
+                        label = f"{pp[0]} #{pp[1]}"
+                    else:
+                        label = pp[0]
+                    if role and str(role).lower() == 'payer':
+                        payers.append(label)
+                    elif role and str(role).lower() == 'payee':
+                        payees.append(label)
+                row.append(', '.join(payers))
+                row.append(', '.join(payees))
+            except Exception:
+                row.append('')
+                row.append('')
             w.writerow(row)
         csv_data = buf.getvalue()
         return app.response_class(csv_data, mimetype='text/csv', headers={"Content-Disposition": "attachment; filename=ledger.csv"})
@@ -317,6 +386,7 @@ def payments_ledger_pdf(current_user):
     party_type = params.get('party_type')
     party_id = params.get('party_id')
     payment_mode = params.get('payment_mode')
+    payment_type = params.get('payment_type')
     start_date = params.get('start_date')
     end_date = params.get('end_date')
 
@@ -332,6 +402,12 @@ def payments_ledger_pdf(current_user):
         if party_id:
             sql += " AND pp.party_id = %s"
             args.append(party_id)
+        if payment_mode:
+            sql += " AND p.payment_mode = %s"
+            args.append(payment_mode)
+        if payment_type:
+            sql += " AND p.payment_type = %s"
+            args.append(payment_type)
     else:
         sql = "SELECT p.* FROM payments p WHERE 1=1"
         if deal_id:
@@ -340,6 +416,9 @@ def payments_ledger_pdf(current_user):
         if payment_mode:
             sql += " AND p.payment_mode = %s"
             args.append(payment_mode)
+        if payment_type:
+            sql += " AND p.payment_type = %s"
+            args.append(payment_type)
 
     if start_date:
         sql += " AND p.payment_date >= %s"
@@ -404,6 +483,23 @@ def payments_ledger_pdf(current_user):
             # Party splits (if any) — draw a small table with columns
             if r.get('parties'):
                 parts = r.get('parties') or []
+                # derive payer/payee summary if roles present
+                try:
+                    payers = [pp.get('party_name') or (f"{pp.get('party_type')} #{pp.get('party_id')}") for pp in parts if (pp.get('role') or '').lower() == 'payer']
+                    payees = [pp.get('party_name') or (f"{pp.get('party_type')} #{pp.get('party_id')}") for pp in parts if (pp.get('role') or '').lower() == 'payee']
+                    if payers or payees:
+                        summary = ''
+                        if payers and payees:
+                            summary = f"{', '.join(payers)} → {', '.join(payees)}"
+                        elif payers:
+                            summary = f"Paid by {', '.join(payers)}"
+                        else:
+                            summary = f"Paid to {', '.join(payees)}"
+                        c.setFont('Helvetica-Bold', 9)
+                        c.drawString(40, y, summary[:200])
+                        y -= 14
+                except Exception:
+                    pass
                 if parts:
                     # Table layout
                     x0 = 48
@@ -462,20 +558,27 @@ def payments_ledger_pdf(current_user):
 @app.route('/api/payments/ledger', methods=['GET'])
 def payments_ledger():
     """Return payments filtered by query parameters:
-    Supported params: deal_id, party_type, party_id, payment_mode, start_date, end_date
+    Supported params: deal_id, party_type, party_id, payment_mode, payment_type, person_search, start_date, end_date
     """
     params = request.args
     deal_id = params.get('deal_id')
     party_type = params.get('party_type')
     party_id = params.get('party_id')
     payment_mode = params.get('payment_mode')
+    payment_type = params.get('payment_type')
+    person_search = params.get('person_search')
     start_date = params.get('start_date')
     end_date = params.get('end_date')
 
-    # If filtering by party (party_type or party_id) prefer to join payment_parties
+    # If filtering by party (party_type, party_id, or person_search) prefer to join payment_parties
     args = []
-    if party_type or party_id:
-        sql = "SELECT DISTINCT p.* FROM payments p JOIN payment_parties pp ON pp.payment_id = p.id WHERE 1=1"
+    if party_type or party_id or person_search:
+        sql = """SELECT DISTINCT p.* FROM payments p 
+                 JOIN payment_parties pp ON pp.payment_id = p.id 
+                 LEFT JOIN owners o ON pp.party_type = 'owner' AND pp.party_id = o.id
+                 LEFT JOIN investors i ON pp.party_type = 'investor' AND pp.party_id = i.id
+                 LEFT JOIN buyers b ON pp.party_type = 'buyer' AND pp.party_id = b.id
+                 WHERE 1=1"""
         if deal_id:
             sql += " AND p.deal_id = %s"
             args.append(deal_id)
@@ -485,6 +588,20 @@ def payments_ledger():
         if party_id:
             sql += " AND pp.party_id = %s"
             args.append(party_id)
+        if person_search:
+            sql += """ AND (
+                LOWER(o.name) LIKE LOWER(%s) OR 
+                LOWER(i.investor_name) LIKE LOWER(%s) OR 
+                LOWER(b.name) LIKE LOWER(%s)
+            )"""
+            search_term = f"%{person_search}%"
+            args.extend([search_term, search_term, search_term])
+        if payment_mode:
+            sql += " AND p.payment_mode = %s"
+            args.append(payment_mode)
+        if payment_type:
+            sql += " AND p.payment_type = %s"
+            args.append(payment_type)
     else:
         sql = "SELECT p.* FROM payments p WHERE 1=1"
         if deal_id:
@@ -493,6 +610,9 @@ def payments_ledger():
         if payment_mode:
             sql += " AND p.payment_mode = %s"
             args.append(payment_mode)
+        if payment_type:
+            sql += " AND p.payment_type = %s"
+            args.append(payment_type)
 
     if start_date:
         sql += " AND p.payment_date >= %s"
@@ -547,6 +667,11 @@ def create_payment(current_user, deal_id):
     payment_mode = data.get('payment_mode')
     reference = data.get('reference')
     notes = data.get('notes')
+    # payment_type: 'land_purchase', 'investment_sale', 'documentation_legal', 'other'
+    payment_type = data.get('payment_type', 'other')
+    allowed_payment_types = {'land_purchase', 'investment_sale', 'documentation_legal', 'other'}
+    if payment_type not in allowed_payment_types:
+        payment_type = 'other'
 
     # Validate amount
     try:
@@ -575,6 +700,7 @@ def create_payment(current_user, deal_id):
                 pid = part.get('party_id')
                 amt = part.get('amount')
                 pct = part.get('percentage')
+                role = part.get('role')
                 if pid is not None and pid != '':
                     try:
                         pid = int(pid)
@@ -590,7 +716,7 @@ def create_payment(current_user, deal_id):
                         pct = float(pct)
                     except Exception:
                         pct = None
-                prepared_parties.append({'party_type': pt, 'party_id': pid, 'amount': amt, 'percentage': pct})
+                prepared_parties.append({'party_type': pt, 'party_id': pid, 'amount': amt, 'percentage': pct, 'role': role})
     except Exception:
         prepared_parties = []
 
@@ -600,11 +726,20 @@ def create_payment(current_user, deal_id):
         # Start a transaction to ensure payment + parties are atomic
         conn.start_transaction()
         cursor = conn.cursor()
-        cursor.execute(
-            """INSERT INTO payments (deal_id, party_type, party_id, amount, currency, payment_date, payment_mode, reference, notes, created_by)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (deal_id, party_type, party_id, amount, currency, payment_date, payment_mode, reference, notes, current_user)
-        )
+        # include payment_type column if present in DB (safe to pass None if column missing)
+        try:
+            cursor.execute(
+                """INSERT INTO payments (deal_id, party_type, party_id, amount, currency, payment_date, payment_mode, reference, notes, created_by, payment_type)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (deal_id, party_type, party_id, amount, currency, payment_date, payment_mode, reference, notes, current_user, payment_type)
+            )
+        except mysql.connector.Error as e:
+            # fallback if `payment_type` column doesn't exist
+            cursor.execute(
+                """INSERT INTO payments (deal_id, party_type, party_id, amount, currency, payment_date, payment_mode, reference, notes, created_by)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (deal_id, party_type, party_id, amount, currency, payment_date, payment_mode, reference, notes, current_user)
+            )
         payment_id = cursor.lastrowid
 
         # Server-side validation: if prepared_parties provided, ensure consistency
@@ -616,12 +751,16 @@ def create_payment(current_user, deal_id):
             if percentages_provided:
                 total_pct = sum([p.get('percentage') or 0 for p in prepared_parties])
                 force = request.args.get('force', 'false').lower() == 'true'
-                if abs(total_pct - 100.0) > 0.01 and not force:
+                
+                # Only validate percentage sum if there are actual non-zero percentages
+                non_zero_percentages = [p.get('percentage') for p in prepared_parties if p.get('percentage') and p.get('percentage') > 0]
+                
+                if non_zero_percentages and abs(total_pct - 100.0) > 0.01 and not force:
                     try:
                         conn.rollback()
                     except Exception:
                         pass
-                    return jsonify({'error': 'party_percentage_mismatch', 'total_percentage': total_pct}), 400
+                    return jsonify({'error': f'Party percentage mismatch: total {total_pct}', 'total_percentage': total_pct}), 400
 
             # If only percentages are provided (not amounts), compute amounts from payment amount
             if percentages_provided and not amounts_provided:
@@ -645,16 +784,40 @@ def create_payment(current_user, deal_id):
         if prepared_parties:
             for part in prepared_parties:
                 try:
-                    cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount, percentage) VALUES (%s,%s,%s,%s,%s)", (payment_id, part.get('party_type', 'other'), part.get('party_id'), part.get('amount'), part.get('percentage')))
+                    # Try inserting with all new fields including pay_to fields
+                    cursor.execute("""
+                        INSERT INTO payment_parties 
+                        (payment_id, party_type, party_id, amount, percentage, role, pay_to_id, pay_to_name, pay_to_type) 
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """, (
+                        payment_id, 
+                        part.get('party_type', 'other'), 
+                        part.get('party_id'), 
+                        part.get('amount'), 
+                        part.get('percentage'), 
+                        part.get('role'),
+                        part.get('pay_to_id'),
+                        part.get('pay_to_name'),
+                        part.get('pay_to_type')
+                    ))
                 except mysql.connector.Error as db_e:
-                    # If the DB schema is missing the `percentage` column (1054), retry without it.
+                    # Try fallbacks for older schemas: missing percentage and/or role columns
+                    msg = str(db_e)
                     try:
-                        if getattr(db_e, 'errno', None) == 1054 or 'Unknown column' in str(db_e):
-                            cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount) VALUES (%s,%s,%s,%s)", (payment_id, part.get('party_type', 'other'), part.get('party_id'), part.get('amount')))
+                        if 'Unknown column' in msg or getattr(db_e, 'errno', None) == 1054:
+                            # Try with role and percentage but without pay_to fields
+                            try:
+                                cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount, percentage, role) VALUES (%s,%s,%s,%s,%s,%s)", (payment_id, part.get('party_type', 'other'), part.get('party_id'), part.get('amount'), part.get('percentage'), part.get('role')))
+                            except mysql.connector.Error:
+                                # try without percentage and role
+                                try:
+                                    cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount) VALUES (%s,%s,%s,%s)", (payment_id, part.get('party_type', 'other'), part.get('party_id'), part.get('amount')))
+                                except mysql.connector.Error:
+                                    # try with percentage only
+                                    cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount, percentage) VALUES (%s,%s,%s,%s,%s)", (payment_id, part.get('party_type', 'other'), part.get('party_id'), part.get('amount'), part.get('percentage')))
                         else:
                             raise
                     except Exception:
-                        # Bubble up original error so outer except catches and returns 500
                         raise
 
         # commit transaction
@@ -682,7 +845,7 @@ def annotate_payment(current_user, deal_id, payment_id):
     """Add notes or update a payment's reference/notes"""
     data = request.get_json() or {}
     fields = {}
-    for k in ('reference', 'notes', 'payment_mode', 'amount', 'payment_date'):
+    for k in ('reference', 'notes', 'payment_mode', 'amount', 'payment_date', 'category'):
         if k in data:
             fields[k] = data[k]
 
@@ -778,6 +941,10 @@ def add_payment_party(current_user, payment_id):
     pid = data.get('party_id')
     amt = data.get('amount')
     pct = data.get('percentage')
+    role = data.get('role')
+    pay_to_id = data.get('pay_to_id')
+    pay_to_name = data.get('pay_to_name')
+    pay_to_type = data.get('pay_to_type')
     try:
         if pid is not None and pid != '':
             pid = int(pid)
@@ -793,16 +960,35 @@ def add_payment_party(current_user, payment_id):
             pct = float(pct)
     except Exception:
         pct = None
+    try:
+        if pay_to_id is not None and pay_to_id != '':
+            pay_to_id = int(pay_to_id)
+    except Exception:
+        pay_to_id = None
 
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount, percentage) VALUES (%s,%s,%s,%s,%s)", (payment_id, pt, pid, amt, pct))
+            cursor.execute("""
+                INSERT INTO payment_parties 
+                (payment_id, party_type, party_id, amount, percentage, role, pay_to_id, pay_to_name, pay_to_type) 
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (payment_id, pt, pid, amt, pct, role, pay_to_id, pay_to_name, pay_to_type))
         except mysql.connector.Error as db_e:
-            if getattr(db_e, 'errno', None) == 1054 or 'Unknown column' in str(db_e):
-                cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount) VALUES (%s,%s,%s,%s)", (payment_id, pt, pid, amt))
+            msg = str(db_e)
+            if getattr(db_e, 'errno', None) == 1054 or 'Unknown column' in msg:
+                # fallback: try without pay_to fields
+                try:
+                    cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount, percentage, role) VALUES (%s,%s,%s,%s,%s,%s)", (payment_id, pt, pid, amt, pct, role))
+                except mysql.connector.Error:
+                    # fallback: try without role and percentage
+                    try:
+                        cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount) VALUES (%s,%s,%s,%s)", (payment_id, pt, pid, amt))
+                    except Exception:
+                        # fallback to include percentage only
+                        cursor.execute("INSERT INTO payment_parties (payment_id, party_type, party_id, amount, percentage) VALUES (%s,%s,%s,%s,%s)", (payment_id, pt, pid, amt, pct))
             else:
                 raise
         conn.commit()
@@ -822,6 +1008,8 @@ def update_payment_party(current_user, party_id):
     for k in ('party_type', 'party_id', 'amount', 'percentage'):
         if k in data:
             fields[k] = data[k]
+    if 'role' in data:
+        fields['role'] = data.get('role')
     if not fields:
         return jsonify({'error': 'no fields to update'}), 400
     # normalize
@@ -960,8 +1148,21 @@ def get_payment_detail(deal_id, payment_id):
             if payment.get(k) is not None and isinstance(payment.get(k), datetime):
                 payment[k] = payment[k].isoformat()
         
-        # Get payment parties
-        cursor.execute("SELECT id, party_type, party_id, amount, percentage FROM payment_parties WHERE payment_id = %s", (payment_id,))
+        # Get payment parties with names
+        cursor.execute("""
+            SELECT pp.id, pp.party_type, pp.party_id, pp.amount, pp.percentage, pp.role,
+                   CASE 
+                     WHEN pp.party_type = 'owner' THEN o.name
+                     WHEN pp.party_type = 'investor' THEN i.investor_name  
+                     WHEN pp.party_type = 'buyer' THEN b.name
+                     ELSE NULL
+                   END as party_name
+            FROM payment_parties pp 
+            LEFT JOIN owners o ON pp.party_type = 'owner' AND pp.party_id = o.id
+            LEFT JOIN investors i ON pp.party_type = 'investor' AND pp.party_id = i.id  
+            LEFT JOIN buyers b ON pp.party_type = 'buyer' AND pp.party_id = b.id
+            WHERE pp.payment_id = %s
+        """, (payment_id,))
         parties = cursor.fetchall() or []
         party_list = []
         for p in parties:
@@ -969,8 +1170,10 @@ def get_payment_detail(deal_id, payment_id):
                 'id': p.get('id'),
                 'party_type': p.get('party_type'),
                 'party_id': p.get('party_id'),
+                'party_name': p.get('party_name'),
                 'amount': float(p.get('amount')) if p.get('amount') is not None else None,
-                'percentage': float(p.get('percentage')) if p.get('percentage') is not None else None
+                'percentage': float(p.get('percentage')) if p.get('percentage') is not None else None,
+                'role': p.get('role')
             })
         payment['parties'] = party_list
         
@@ -1137,21 +1340,28 @@ def list_payment_proofs(deal_id, payment_id):
         for r in rows:
             if r.get('file_path'):
                 p = r['file_path'].replace('\\', '/')
-                # If path contains 'uploads/...', trim any leading '../' or other segments
+                # Remove any leading path components and ensure we start from uploads/
                 idx = p.find('uploads/')
                 if idx != -1:
-                    p = '/' + p[idx:]
+                    # Take everything from 'uploads/' onwards
+                    clean_path = p[idx:]
+                    # Backend serves uploads at /uploads, so don't double it
+                    if clean_path.startswith('uploads/'):
+                        clean_path = clean_path[8:]  # Remove 'uploads/' prefix
+                    file_url = f"/uploads/{clean_path}"
                 else:
-                    # ensure it starts with /
+                    # Fallback - ensure it starts with /uploads/
                     if not p.startswith('/'):
                         p = '/' + p
-                # Build an absolute URL so the frontend (which may be on a different origin) can fetch the file
+                    file_url = p if p.startswith('/uploads/') else f"/uploads{p}"
+                
+                # Build the complete URL with the backend host
                 try:
                     base = request.host_url.rstrip('/')
-                    r['url'] = f"{base}{p}"
+                    r['url'] = f"{base}{file_url}"
                 except Exception:
-                    # fallback to the path-only URL
-                    r['url'] = p
+                    # Fallback to the relative URL
+                    r['url'] = file_url
             # include doc_type if present
             if r.get('doc_type'):
                 r['doc_type'] = r.get('doc_type')
@@ -2880,6 +3090,133 @@ def admin_list_users(current_user):
     finally:
         if conn:
             conn.close()
+
+
+@app.route('/api/investors', methods=['GET'])
+@token_required
+def get_all_investors(current_user):
+    """Return all investors across deals"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM investors ORDER BY investor_name")
+        rows = cursor.fetchall() or []
+        # convert datetime fields if present
+        for r in rows:
+            for k, v in list(r.items()):
+                if isinstance(v, datetime):
+                    r[k] = v.isoformat()
+        return jsonify(rows)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/investors/<int:investor_id>', methods=['GET'])
+@token_required
+def get_investor(current_user, investor_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM investors WHERE id = %s LIMIT 1", (investor_id,))
+        inv = cursor.fetchone()
+        if not inv:
+            return jsonify({'error': 'Investor not found'}), 404
+        for k, v in list(inv.items()):
+            if isinstance(v, datetime):
+                inv[k] = v.isoformat()
+        return jsonify(inv)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/api/investors', methods=['POST'])
+@token_required
+def create_investor(current_user):
+    try:
+        data = request.get_json() or {}
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("""
+            INSERT INTO investors (deal_id, investor_name, investment_amount, investment_percentage, mobile, email, aadhar_card, pan_card, address)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            data.get('deal_id'),
+            data.get('investor_name'),
+            data.get('investment_amount'),
+            data.get('investment_percentage'),
+            data.get('mobile'),
+            data.get('email'),
+            data.get('aadhar_card'),
+            data.get('pan_card'),
+            data.get('address')
+        ))
+        investor_id = cursor.lastrowid
+        connection.commit()
+        # return created object
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM investors WHERE id = %s", (investor_id,))
+        new_inv = cursor.fetchone()
+        return jsonify(new_inv), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'connection' in locals() and connection:
+            connection.close()
+
+
+@app.route('/api/investors/<int:investor_id>', methods=['PUT'])
+@token_required
+def update_investor(current_user, investor_id):
+    try:
+        data = request.get_json() or {}
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        # build update
+        updates = []
+        params = []
+        for field in ['investor_name', 'investment_amount', 'investment_percentage', 'mobile', 'email', 'aadhar_card', 'pan_card', 'address', 'deal_id']:
+            if field in data:
+                updates.append(f"{field} = %s")
+                params.append(data.get(field))
+        if not updates:
+            return jsonify({'error': 'nothing to update'}), 400
+        params.append(investor_id)
+        sql = 'UPDATE investors SET ' + ', '.join(updates) + ' WHERE id = %s'
+        cursor.execute(sql, tuple(params))
+        connection.commit()
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM investors WHERE id = %s", (investor_id,))
+        updated = cursor.fetchone()
+        return jsonify(updated)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'connection' in locals() and connection:
+            connection.close()
+
+
+@app.route('/api/investors/<int:investor_id>', methods=['DELETE'])
+@token_required
+def delete_investor(current_user, investor_id):
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("DELETE FROM investors WHERE id = %s", (investor_id,))
+        connection.commit()
+        return jsonify({'message': 'Investor deleted'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'connection' in locals() and connection:
+            connection.close()
 
 
 @app.route('/api/admin/users', methods=['POST'])

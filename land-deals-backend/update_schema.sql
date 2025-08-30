@@ -134,6 +134,7 @@ CREATE TABLE IF NOT EXISTS payment_proofs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     payment_id INT NOT NULL,
     file_path VARCHAR(500) NOT NULL,
+    file_name VARCHAR(255),
     uploaded_by INT,
     doc_type VARCHAR(50),
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -143,3 +144,6 @@ CREATE TABLE IF NOT EXISTS payment_proofs (
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_payment_parties_payment_id ON payment_parties(payment_id);
 CREATE INDEX IF NOT EXISTS idx_payment_proofs_payment_id ON payment_proofs(payment_id);
+
+-- Add category column to payments for clearer classification: 'buy','sell','docs','other'
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS category ENUM('buy','sell','docs','other') DEFAULT NULL;
