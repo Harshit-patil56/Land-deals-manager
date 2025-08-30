@@ -9,8 +9,6 @@ export default function Owners() {
   const [owners, setOwners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedOwner, setSelectedOwner] = useState(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
   const [user, setUser] = useState(null);
@@ -24,7 +22,7 @@ export default function Owners() {
     }
     setUser(currentUser);
     fetchOwners();
-  }, []);
+  }, [router]);
 
   const fetchOwners = async () => {
     try {

@@ -29,18 +29,22 @@ export default function NewOwner() {
       return;
     }
     setUser(currentUser);
-    fetchDeals();
-  }, []);
 
-  const fetchDeals = async () => {
-    try {
-      const response = await api.get('/deals');
-      setDeals(response.data);
-    } catch (error) {
-      console.error('Error fetching deals:', error);
-      toast.error('Failed to fetch deals');
-    }
-  };
+    // inline fetchDeals to avoid missing dependency warnings
+    const fetchDealsInner = async () => {
+      try {
+        const response = await api.get('/deals');
+        setDeals(response.data);
+      } catch (error) {
+        console.error('Error fetching deals:', error);
+        toast.error('Failed to fetch deals');
+      }
+    };
+
+    fetchDealsInner();
+  }, [router]);
+
+  // fetchDeals was inlined into useEffect to avoid dependency warnings
 
   const handleChange = (e) => {
     const { name, value } = e.target;

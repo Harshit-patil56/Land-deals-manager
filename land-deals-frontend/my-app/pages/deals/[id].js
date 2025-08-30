@@ -3,7 +3,6 @@ import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { dealAPI } from '../../lib/api'
 import { getUser, logout } from '../../lib/auth'
-import { hasPermission, PERMISSIONS } from '../../lib/permissions'
 import { EditButton, DeleteButton } from '../../components/common/PermissionButton'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
@@ -32,7 +31,7 @@ export default function DealDetails() {
       return
     }
     setUser(currentUser)
-  }, [])
+  }, [router])
 
   useEffect(() => {
     if (!id) return
@@ -601,7 +600,7 @@ export default function DealDetails() {
                           <tr key={inv.id || index} className="hover:bg-slate-50">
                             <td className="py-4 px-4 text-sm font-medium text-slate-900">{inv.investor_name || 'Not specified'}</td>
                             <td className="py-4 px-4 text-sm font-bold text-blue-600">₹{inv.investment_amount?.toLocaleString('en-IN') || '0'}</td>
-                            <td className="py-4 px-4 text-sm text-slate-600">{inv.investment_percentage}% || 'Not set'</td>
+                            <td className="py-4 px-4 text-sm text-slate-600">{inv.investment_percentage}% || &apos;Not set&apos;</td>
                             <td className="py-4 px-4 text-sm text-slate-600">{inv.phone || 'Not provided'}</td>
                             <td className="py-4 px-4 text-sm text-slate-600">{inv.email || 'Not provided'}</td>
                             <td className="py-4 px-4 text-sm text-slate-600">{inv.aadhar_card || 'Not provided'}</td>

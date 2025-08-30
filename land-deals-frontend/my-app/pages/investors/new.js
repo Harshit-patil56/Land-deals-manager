@@ -33,7 +33,7 @@ export default function NewInvestor() {
     }
     setUser(currentUser);
     fetchDeals();
-  }, []);
+  }, [router]);
 
   const fetchDeals = async () => {
     try {

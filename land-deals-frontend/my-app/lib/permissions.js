@@ -175,7 +175,7 @@ export function withPermission(WrappedComponent, requiredPermissions, FallbackCo
               </svg>
             </div>
             <h3 className="text-lg font-semibold text-slate-900 mb-2">Access Denied</h3>
-            <p className="text-slate-600">You don't have permission to access this feature.</p>
+            <p className="text-slate-600">You don&apos;t have permission to access this feature.</p>
           </div>
         </div>
       )
@@ -226,7 +226,7 @@ export function getRoleDescription(role) {
   return roleDescriptions[role] || 'No description available'
 }
 
-export default {
+const permissionsExport = {
   ROLES,
   PERMISSIONS,
   hasPermission,
@@ -239,3 +239,5 @@ export default {
   getRoleName,
   getRoleDescription
 }
+
+export default permissionsExport

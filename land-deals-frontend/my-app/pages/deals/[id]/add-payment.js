@@ -16,7 +16,7 @@ export default function AddPaymentPage() {
   const [saving, setSaving] = useState(false)
   const [forceSave, setForceSave] = useState(false)
   const [fieldErrors, setFieldErrors] = useState({})
-  const [totalPartiesAmount, setTotalPartiesAmount] = useState(0)
+  // const [totalPartiesAmount, setTotalPartiesAmount] = useState(0) // Unused variable
   const amountRef = useRef(null)
   const [mounted, setMounted] = useState(false)
 
@@ -78,17 +78,17 @@ export default function AddPaymentPage() {
     setParties(rows)
   }
 
-  const importAndSplitEqual = () => {
-    if (!participants || participants.length === 0) { toast('No participants to import'); return }
-    const rows = participants.map((p, index) => ({
-      party_type: p.party_type, 
-      party_id: p.id, 
-      party_name: p.name || '', 
-      amount: '', 
-      role: index === 0 ? 'payer' : 'payee' // First participant is payer, others are payees
-    }))
-    setParties(rows)
-  }
+  // const importAndSplitEqual = () => { // Unused function
+  //   if (!participants || participants.length === 0) { toast('No participants to import'); return }
+  //   const rows = participants.map((p, index) => ({
+  //     party_type: p.party_type, 
+  //     party_id: p.id, 
+  //     party_name: p.name || '', 
+  //     amount: '', 
+  //     role: index === 0 ? 'payer' : 'payee' // First participant is payer, others are payees
+  //   }))
+  //   setParties(rows)
+  // }
 
   // Compute totals when form.amount or parties change
   useEffect(() => {
@@ -684,7 +684,7 @@ export default function AddPaymentPage() {
                         onChange={e => setForceSave(e.target.checked)} 
                         className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" 
                       />
-                      <span className="ml-2 text-sm text-slate-600">Force save if amounts don't match</span>
+                      <span className="ml-2 text-sm text-slate-600">Force save if amounts don&apos;t match</span>
                     </label>
                   </div>
                   

@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 import { useRouter } from 'next/router'
 import { useEffect, useState, useCallback } from 'react'
 import Navbar from '../../../../components/layout/Navbar'
@@ -12,8 +11,7 @@ export default function PaymentDetailPage() {
   const [proofs, setProofs] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
-  // track failed images (used to fallback to icon) - used to toggle a CSS class when an image fails
-  const [failedImages, setFailedImages] = useState(new Set()) // kept for potential future use
+  // const [failedImages, setFailedImages] = useState(new Set()) // Unused variable - kept for potential future use
   const [selectedDocType, setSelectedDocType] = useState('receipt')
 
   const fetchData = useCallback(async () => {
@@ -59,16 +57,16 @@ export default function PaymentDetailPage() {
     }
   }
 
-  const handleDeleteProof = async (proofId) => {
-    if (!confirm('Delete this proof?')) return
-    try {
-      await paymentsAPI.deleteProof(id, pid, proofId)
-      toast.success('Deleted')
-      fetchData()
-    } catch {
-      toast.error('Delete failed')
-    }
-  }
+  // const handleDeleteProof = async (proofId) => { // Unused function - kept for potential future use
+  //   if (!confirm('Delete this proof?')) return
+  //   try {
+  //     await paymentsAPI.deleteProof(id, pid, proofId)
+  //     toast.success('Deleted')
+  //     fetchData()
+  //   } catch {
+  //     toast.error('Delete failed')
+  //   }
+  // }
 
   if (loading) return (
     <div className="min-h-screen bg-slate-50">
@@ -333,7 +331,7 @@ export default function PaymentDetailPage() {
                         {payers.length > 0 && payees.length === 0 && !payment.parties.some(p => p.pay_to_name || p.pay_to_id) && (
                           <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                             <div className="text-sm text-yellow-800">
-                              <strong>Note:</strong> This payment shows who made the payment, but doesn't specify who received it. 
+                              <strong>Note:</strong> This payment shows who made the payment, but doesn&apos;t specify who received it. 
                               For complete payment tracking, consider adding payee information when creating new payments.
                             </div>
                           </div>

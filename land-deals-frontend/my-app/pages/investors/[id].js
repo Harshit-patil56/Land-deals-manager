@@ -26,36 +26,36 @@ export default function InvestorDetail() {
     }
     setUser(currentUser);
     
+    const fetchInvestorDetails = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get(`/investors/${id}`);
+        setInvestor(response.data.investor);
+        setDeals(response.data.deals || []);
+        
+        // Ensure documents is an array
+        const documentsArray = Array.isArray(response.data.documents) 
+          ? response.data.documents 
+          : Object.values(response.data.documents || {}).flat();
+        
+        setDocuments(documentsArray);
+      } catch (error) {
+        console.error('Error fetching investor details:', error);
+        if (error.response?.status === 404) {
+          toast.error('Investor not found');
+          router.push('/investors');
+        } else {
+          toast.error('Failed to fetch investor details');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    
     if (id) {
       fetchInvestorDetails();
     }
-  }, [id]);
-
-  const fetchInvestorDetails = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get(`/investors/${id}`);
-      setInvestor(response.data.investor);
-      setDeals(response.data.deals || []);
-      
-      // Ensure documents is an array
-      const documentsArray = Array.isArray(response.data.documents) 
-        ? response.data.documents 
-        : Object.values(response.data.documents || {}).flat();
-      
-      setDocuments(documentsArray);
-    } catch (error) {
-      console.error('Error fetching investor details:', error);
-      if (error.response?.status === 404) {
-        toast.error('Investor not found');
-        router.push('/investors');
-      } else {
-        toast.error('Failed to fetch investor details');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [id, router]);
 
   const handleFileUpload = async (e) => {
     e.preventDefault();
@@ -103,7 +103,7 @@ export default function InvestorDetail() {
     if (navigator.share) {
       try {
         await navigator.share(shareData);
-      } catch (error) {
+      } catch {
         // Fallback to copying URL
         navigator.clipboard.writeText(window.location.href);
         toast.success('Investor details link copied to clipboard!');
@@ -459,7 +459,7 @@ export default function InvestorDetail() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                   <h3 className="text-xl font-semibold text-slate-900 mb-3">No Investment Deals Found</h3>
-                  <p className="text-slate-600 max-w-md mx-auto">This investor doesn't have any investment deals registered in the system yet. Deals will appear here once they are added.</p>
+                  <p className="text-slate-600 max-w-md mx-auto">This investor doesn&apos;t have any investment deals registered in the system yet. Deals will appear here once they are added.</p>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-200">

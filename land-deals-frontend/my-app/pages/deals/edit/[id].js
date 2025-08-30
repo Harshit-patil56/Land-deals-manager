@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { dealAPI } from '../../../lib/api';
@@ -12,7 +12,7 @@ export default function EditDeal() {
   const { id } = router.query;
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [originalDeal, setOriginalDeal] = useState(null);
+  // const [originalDeal, setOriginalDeal] = useState(null); // Unused variable
   const [form, setForm] = useState({
     project_name: '',
     survey_number: '',
@@ -59,13 +59,13 @@ export default function EditDeal() {
     setUser(currentUser);
     setAuthChecked(true);
     loadStates();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (id && authChecked) {
       fetchDealData();
     }
-  }, [id, authChecked]);
+  }, [id, authChecked, fetchDealData]);
 
   // Location loading functions
   const loadStates = async () => {
@@ -95,13 +95,13 @@ export default function EditDeal() {
     }
   };
 
-  const fetchDealData = async () => {
+  const fetchDealData = useCallback(async () => {
     try {
       setFetchLoading(true);
       const response = await dealAPI.getById(id);
       const dealData = response.data;
       
-      setOriginalDeal(dealData);
+      // setOriginalDeal(dealData); // Unused variable
       
       // Map the deal data to form structure
       setForm({
@@ -164,7 +164,7 @@ export default function EditDeal() {
     } finally {
       setFetchLoading(false);
     }
-  };
+  }, [id, router]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;

@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { getUser, logout, isAuthenticated } from '../lib/auth';
 import Navbar from '../components/layout/Navbar';
-import { Plus, Search, Filter, Edit, Trash2, User, Phone, Mail, CreditCard, Hash, Eye } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, User, Phone, Mail, CreditCard, Hash, Eye } from 'lucide-react';
 import api from '../lib/api';
 import { toast } from 'react-hot-toast';
 

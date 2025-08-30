@@ -1,12 +1,11 @@
 // --- All imports remain untouched ---
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { dealAPI, investorsAPI, ownersAPI } from '../../lib/api';
+import { dealAPI, ownersAPI } from '../../lib/api';
 import api from '../../lib/api';
-import { getUser, getToken } from '../../lib/auth';
+import { getUser } from '../../lib/auth';
 import toast from 'react-hot-toast';
 import * as locationAPI from '../../lib/locationAPI';
-import { Plus, X } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
 
 export default function NewDeal() {
@@ -99,7 +98,7 @@ export default function NewDeal() {
       }
     });
     setInvestorDocuments(newInvestorDocuments);
-  }, [form.investors.length]);
+  }, [form.investors, investorDocuments]);
   
   // Existing owners functionality
   const [existingOwners, setExistingOwners] = useState([]);

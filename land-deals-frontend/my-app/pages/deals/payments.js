@@ -1,7 +1,6 @@
 import { useRouter } from 'next/router'
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { paymentsAPI } from '../../lib/api'
-import api from '../../lib/api'
 import { getToken } from '../../lib/auth'
 import toast from 'react-hot-toast'
 import Navbar from '../../components/layout/Navbar'
@@ -24,7 +23,7 @@ export default function PaymentsPage() {
       amount_max: ''
     })
   const [ledgerResults, setLedgerResults] = useState([])
-  const [uploading, setUploading] = useState(false)
+  // const [uploading, setUploading] = useState(false) // Unused variable
   const [mounted, setMounted] = useState(false)
   const [proofsByPayment, setProofsByPayment] = useState({})
   const [openProofPayment, setOpenProofPayment] = useState(null)
@@ -67,14 +66,14 @@ export default function PaymentsPage() {
     return pt.party_type || 'participant'
   }
 
-  const isDocPayment = (p) => {
-    if (!p) return false
-    const text = ((p.notes || '') + ' ' + (p.reference || '') + ' ' + (p.payment_mode || '')).toLowerCase()
-    if (text.includes('doc') || text.includes('document') || text.includes('stamp') || text.includes('registration') || text.includes('fees') || text.includes('charges')) return true
-    // also treat payments whose parties only include owner but are small amounts as docs (heuristic)
-    if (p.parties && p.parties.length === 1 && p.parties[0].party_type === 'owner' && Number(p.amount) < 50000) return true
-    return false
-  }
+  // const isDocPayment = (p) => { // Unused function
+  //   if (!p) return false
+  //   const text = ((p.notes || '') + ' ' + (p.reference || '') + ' ' + (p.payment_mode || '')).toLowerCase()
+  //   if (text.includes('doc') || text.includes('document') || text.includes('stamp') || text.includes('registration') || text.includes('fees') || text.includes('charges')) return true
+  //   // also treat payments whose parties only include owner but are small amounts as docs (heuristic)
+  //   if (p.parties && p.parties.length === 1 && p.parties[0].party_type === 'owner' && Number(p.amount) < 50000) return true
+  //   return false
+  // }
 
   const loadProofs = async (paymentId) => {
     try {
@@ -163,25 +162,25 @@ export default function PaymentsPage() {
     URL.revokeObjectURL(url)
   }
 
-  const downloadServerCsv = async () => {
-    try {
-      const filters = { ...ledgerFilters }
-      if (id) filters.deal_id = id
-      const resp = await paymentsAPI.ledgerCsv(filters)
-      const blob = new Blob([resp.data], { type: resp.headers['content-type'] || 'text/csv' })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `ledger_deal_${id || 'all'}.csv`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      window.URL.revokeObjectURL(url)
-    } catch (err) {
-      console.error('Failed to download server CSV', err)
-      toast.error('Failed to download server CSV')
-    }
-  }
+  // const downloadServerCsv = async () => { // Unused function
+  //   try {
+  //     const filters = { ...ledgerFilters }
+  //     if (id) filters.deal_id = id
+  //     const resp = await paymentsAPI.ledgerCsv(filters)
+  //     const blob = new Blob([resp.data], { type: resp.headers['content-type'] || 'text/csv' })
+  //     const url = window.URL.createObjectURL(blob)
+  //     const a = document.createElement('a')
+  //     a.href = url
+  //     a.download = `ledger_deal_${id || 'all'}.csv`
+  //     document.body.appendChild(a)
+  //     a.click()
+  //     a.remove()
+  //     window.URL.revokeObjectURL(url)
+  //   } catch (err) {
+  //     console.error('Failed to download server CSV', err)
+  //     toast.error('Failed to download server CSV')
+  //   }
+  // }
 
   const downloadServerPdf = async () => {
     try {
@@ -421,7 +420,7 @@ export default function PaymentsPage() {
                     </svg>
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">No Payments Yet</h3>
-                  <p className="text-sm text-slate-600 text-center">No payment records found for this deal.<br />Use the "Add New Payment" button to record your first transaction.</p>
+                  <p className="text-sm text-slate-600 text-center">No payment records found for this deal.<br />Use the &quot;Add New Payment&quot; button to record your first transaction.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
